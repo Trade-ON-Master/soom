@@ -4,7 +4,7 @@
 
 - 이 저장소에는 앱 프로그램(화면 모양과 계산 방법)만 들어 있어요. 러닝·심박·수면 같은 기록은 들어 있지 않아요.
 - 기록은 앱을 연 기기(아이폰) 안에만 저장되고, 어떤 서버로도 보내지 않아요.
-- 지도 그림은 CARTO(OpenStreetMap 데이터)에서 받아와요. 지도를 볼 때 그 지역의 지도 그림만 요청해요.
+- 지도 그림은 OpenStreetMap에서 받아와요(설정에서 카카오맵으로 바꿀 수 있어요). 지도를 볼 때 그 지역의 지도 그림만 요청해요.
 
 ## 아이폰에 설치하기
 
@@ -17,4 +17,4 @@
 - 처음 한 번: 건강 앱 → 프로필 → 모든 건강 데이터 내보내기 → **나의 iPhone**에 저장한 파일(내보내기.zip)을 앱의 **파일 선택**으로 가져와요.
 - 그다음부터: Health Auto Export가 iCloud Drive → AutoExport → **SOOM** 폴더에 저장한 최신 파일 두 개(SOOM 운동, SOOM 건강)를 **파일 선택**으로 함께 가져와요.
 
-지도: © OpenStreetMap contributors, © CARTO · 지도 라이브러리: Leaflet (BSD-2-Clause)
+지도: © OpenStreetMap contributors (설정에서 카카오맵 선택 가능) · 지도 라이브러리: Leaflet (BSD-2-Clause)

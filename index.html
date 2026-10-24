@@ -424,6 +424,13 @@ details.more[open] summary::after { content: "접기"; }
 .page-head .btn svg { width: 15px; height: 15px; }
 .map-note { position: absolute; z-index: 500; left: 10px; right: 10px; top: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--ink-2); font-size: 12px; border-radius: 10px; padding: 8px 10px; text-align: center; }
 .banner a { color: inherit; }
+
+/* dark screens: OpenStreetMap pictures turned into a dark map (the route itself keeps its colours) */
+.dark-tiles .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.55); }
+.kakao-dark img[src*="daumcdn"] { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.55); }
+.start-mark { width: 16px; height: 16px; border-radius: 50%; background: #34c759; border: 3px solid #ffffff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+#settings-form[data-map="osm"] .kakao-only { display: none; }
+.codebox { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink); user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
 </style>
 <div id="app">
   <header class="top">
@@ -1833,7 +1840,7 @@ async function importFiles(files, onProgress, prev) {
 
 const DEFAULT_SETTINGS = {
   sex: '', birthYear: null, weight: null, maxHR: null, restHR: null, lthr: null, zoneMethod: 'hrr',
-  runsPerWeek: 4, longRunDay: 0, goalDist: 0, goalDate: '', goalTime: '', sleepNeed: 8,
+  runsPerWeek: 4, longRunDay: 0, goalDist: 0, goalDate: '', goalTime: '', sleepNeed: 8, period: 'all', mapKind: 'osm', kakaoKey: '',
 };
 const ZONE_NAMES = ['회복', '이지', '템포', '역치', '최대'];
 const LABELS = {
@@ -2061,14 +2068,22 @@ function lerpPts(x, pts) { // piecewise-linear through [[x,y],...] (x ascending)
 function readinessLabel(s) { return s >= 95 ? '최상' : s >= 75 ? '높음' : s >= 50 ? '보통' : s >= 25 ? '낮음' : '매우 낮음'; }
 
 // ---------- main analysis ----------
+const PERIODS = [['all', '전체'], ['5y', '최근 5년'], ['3y', '최근 3년'], ['2y', '최근 2년'], ['1y', '최근 1년'], ['6m', '최근 6개월']];
+function periodStart(p, today) {
+  const days = { '5y': 1826, '3y': 1096, '2y': 731, '1y': 366, '6m': 183 }[p];
+  return days ? today - days : -Infinity;
+}
 function analyze(data, settings, opt) {
   opt = opt || {};
   const S = Object.assign({}, DEFAULT_SETTINGS, settings || {});
   const off = opt.offset !== undefined ? opt.offset : localOffsetSec();
   const now = opt.now !== undefined ? opt.now : nowUtc();
   const today = dayOfUtc(now, off);
-  const runs = data.runs.slice().sort((a, b) => a.start - b.start);
-  const others = (data.others || []).slice().sort((a, b) => a.start - b.start);
+  // analysis period chosen by the person (the stored records stay complete; only what is analysed changes)
+  const fromDay = periodStart(S.period, today);
+  const runs = data.runs.filter(r => r.day >= fromDay).sort((a, b) => a.start - b.start);
+  const others = (data.others || []).filter(o => o.day >= fromDay).sort((a, b) => a.start - b.start);
+  if (fromDay > -Infinity) data = Object.assign({}, data, { runs, others });
   const P = buildProfile(data, S, today);
   const female = P.sex === 'female';
   for (const r of runs) runStage1(r, P);
@@ -2359,7 +2374,7 @@ function analyze(data, settings, opt) {
   const recoveryNow = recoveryAt(now);
 
   const M = {
-    S, today, now, off, evalDay, lastDataDay, stale: staleDays, ref,
+    S, today, now, off, evalDay, lastDataDay, stale: staleDays, ref, fromDay,
     P, runs, others, LT, level, levelPerf, levelHR, appleVO2, appleDays, preds, paces,
     pmc: { d0, load, ctl, atl }, ctl: c, atl: a, acwr, form, fatigue, intensityTrend: it, itBand, load7, load28, recLoad, loadPerKm,
     status: Object.assign({ key: status, vo2Delta }, STATUS[status]),
@@ -2973,7 +2988,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "3be53d8d92";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "ea1f084045";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -3324,16 +3339,18 @@ function mapsOn() { return typeof TARGET !== 'undefined' && TARGET === 'web' && 
 function clearMaps() { for (const m of MAPS) { try { m.remove(); } catch (e) { /* already gone */ } } MAPS.clear(); }
 function isDarkUI() { const t = document.documentElement.dataset.theme; return t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches); }
 const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
-// map pictures: CARTO first; if they will not load, OpenStreetMap's own; if neither, say so on the map
+// map pictures that need no key: OpenStreetMap's own, then the French OpenStreetMap servers; if neither loads, say so on the map
+// (CARTO's free pictures now come back with an "API key required" stamp, so they are no longer used)
 function tileSources() {
   return [
-    { url: isDarkUI() ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 18, attribution: OSM_ATTR + ' © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>' },
     { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: '', maxNativeZoom: 19, attribution: OSM_ATTR },
+    { url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', subdomains: 'abc', maxNativeZoom: 19, attribution: OSM_ATTR + ' · OSM France' },
   ];
 }
+function mapNote(el, text) { const n = document.createElement('div'); n.className = 'map-note'; n.textContent = text; el.appendChild(n); }
 function addTiles(map, el, k) {
   const src = tileSources()[k];
-  if (!src) { const n = document.createElement('div'); n.className = 'map-note'; n.textContent = '지도 그림을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요.'; el.appendChild(n); return; }
+  if (!src) { mapNote(el, '지도 그림을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요.'); return; }
   const layer = L.tileLayer(src.url, { subdomains: src.subdomains || 'abc', maxNativeZoom: src.maxNativeZoom, maxZoom: 20, attribution: src.attribution }).addTo(map);
   let ok = 0, bad = 0, asked = 0, done = false, timer = null;
   layer.on('tileloadstart', () => { asked++; });
@@ -3345,6 +3362,46 @@ function addTiles(map, el, k) {
       done = true; try { map.removeLayer(layer); } catch (e) { /* map gone */ } addTiles(map, el, k + 1);
     }, 400);
   });
+}
+
+// ---- Kakao Map (optional): with the person's own free JavaScript key ----
+let KAKAO = null; // promise of the loaded SDK
+function kakaoKey() { const S = st.settings || {}; return S.mapKind === 'kakao' && S.kakaoKey ? String(S.kakaoKey).trim() : ''; }
+function loadKakao(key) {
+  if (window.kakao && window.kakao.maps && window.kakao.maps.LatLng) return Promise.resolve(window.kakao);
+  if (KAKAO && KAKAO.key === key) return KAKAO.p;
+  const p = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=' + encodeURIComponent(key);
+    const t = setTimeout(() => rej(new Error('timeout')), 9000);
+    sc.onload = () => { try { window.kakao.maps.load(() => { clearTimeout(t); res(window.kakao); }); } catch (e) { clearTimeout(t); rej(e); } };
+    sc.onerror = () => { clearTimeout(t); rej(new Error('load')); };
+    document.head.appendChild(sc);
+  });
+  KAKAO = { key, p }; p.catch(() => { KAKAO = null; });
+  return p;
+}
+function hex(c) { const m = /rgb\((\d+),(\d+),(\d+)\)/.exec(c); return m ? '#' + [m[1], m[2], m[3]].map(v => (+v).toString(16).padStart(2, '0')).join('') : c; }
+function drawKakao(el, r, full, kakao) {
+  const K = kakao.maps, rt = r.route, dark = isDarkUI();
+  const path = rt.la.map((la, i) => new K.LatLng(la, rt.lo[i]));
+  el.innerHTML = ''; el.classList.add('kakao-map'); if (dark) el.classList.add('kakao-dark');
+  const map = new K.Map(el, { center: path[0], level: 5, draggable: full, scrollwheel: full, disableDoubleClickZoom: !full });
+  if (!full) map.setZoomable(false);
+  new K.Polyline({ map, path, strokeWeight: full ? 10 : 8, strokeColor: dark ? '#0b0c10' : '#ffffff', strokeOpacity: 0.95, strokeStyle: 'solid' });
+  const sp = routeSpeeds(r), [lo, hi] = speedRange(sp), span = Math.max(0.05, hi - lo);
+  const step = f => Math.round(clamp(f, 0, 1) * 24) / 24;
+  let seg = [path[0]], cur = step((sp[1] - lo) / span);
+  for (let i = 1; i < path.length; i++) {
+    const q = step((sp[i] - lo) / span); seg.push(path[i]);
+    if (q !== cur || i === path.length - 1) { new K.Polyline({ map, path: seg, strokeWeight: full ? 6 : 5, strokeColor: hex(paceRGB(cur)), strokeOpacity: 1, strokeStyle: 'solid' }); seg = [path[i]]; cur = q; }
+  }
+  new K.CustomOverlay({ map, position: path[path.length - 1], content: '<div class="end-mark" style="width:16px;height:16px"></div>', xAnchor: 0.5, yAnchor: 0.5, zIndex: 3 });
+  new K.CustomOverlay({ map, position: path[0], content: '<div class="start-mark"></div>', xAnchor: 0.5, yAnchor: 0.5, zIndex: 4 });
+  const b = new K.LatLngBounds(); for (const p of path) b.extend(p);
+  const pad = full ? 60 : 24, fit = () => { try { map.relayout(); map.setBounds(b, pad, pad, pad, pad); } catch (e) { /* removed */ } };
+  fit(); setTimeout(fit, 150);
+  return { remove() { el.innerHTML = ''; } };
 }
 
 // speed (m/s) at each route point, averaged over about 80 m either side so colours change smoothly along the road
@@ -3379,6 +3436,15 @@ function paceLegend(r) {
 function drawRouteMap(el, r, opts) {
   opts = opts || {};
   if (!el || !mapsOn() || !r || !r.route || r.route.la.length < 2) return null;
+  const key = kakaoKey();
+  if (key && !opts.noKakao) {
+    // Kakao first; if the key or the site address is not set up right, fall back to OpenStreetMap and say why
+    const holder = { remove() { if (holder.m) holder.m.remove(); holder.dead = true; } };
+    loadKakao(key).then(k => { if (holder.dead || !el.isConnected) return; holder.m = drawKakao(el, r, !!opts.full, k); })
+      .catch(() => { if (holder.dead || !el.isConnected) return; holder.m = drawRouteMap(el, r, Object.assign({}, opts, { noKakao: true })); mapNote(el, '카카오맵을 불러오지 못해 기본 지도로 보여 줘요. 설정의 카카오맵 키와 사이트 주소 등록을 확인해 주세요.'); });
+    if (!opts.full) { MAPS.add(holder); if (opts.onTap) el.addEventListener('click', e => { if (!e.target.closest('a')) opts.onTap(); }); }
+    return holder;
+  }
   const full = !!opts.full, rt = r.route;
   const pts = rt.la.map((la, i) => [la, rt.lo[i]]);
   const coarse = matchMedia('(pointer: coarse)').matches;
@@ -3387,6 +3453,7 @@ function drawRouteMap(el, r, opts) {
     boxZoom: false, keyboard: full, tap: false, zoomSnap: 0.25, preferCanvas: true, fadeAnimation: true,
   });
   map.attributionControl.setPrefix(false);
+  if (isDarkUI()) el.classList.add('dark-tiles');
   addTiles(map, el, 0);
   const ren = L.canvas({ padding: 0.5 }), dark = isDarkUI();
   const line = { renderer: ren, lineCap: 'round', lineJoin: 'round', interactive: false };
@@ -3406,7 +3473,7 @@ function drawRouteMap(el, r, opts) {
   L.circleMarker(pts[0], dot('#34c759')).addTo(map);
   const fit = () => { try { map.invalidateSize(); map.fitBounds(L.latLngBounds(pts), { padding: full ? [48, 48] : [22, 22], maxZoom: 17 }); } catch (e) { /* map already removed */ } };
   fit(); setTimeout(fit, 150); // the box may get its final size a moment after the screen is drawn
-  if (!full) { MAPS.add(map); if (opts.onTap) el.addEventListener('click', e => { if (!e.target.closest('.leaflet-control-attribution')) opts.onTap(); }); }
+  if (!full && !opts.noKakao) { MAPS.add(map); if (opts.onTap) el.addEventListener('click', e => { if (!e.target.closest('.leaflet-control-attribution')) opts.onTap(); }); }
   return map;
 }
 
@@ -4027,7 +4094,7 @@ function vSettings() {
   const fld = (id, label, input, hint, inline) => '<div class="field' + (inline ? ' inline' : '') + '"><label for="' + id + '">' + label + '</label>' + input + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</div>';
   const num2 = (id, v, ph, min, max, dec) => '<input id="' + id + '" type="number" inputmode="' + (dec ? 'decimal' : 'numeric') + '" step="' + (dec ? '0.1' : '1') + '" min="' + min + '" max="' + max + '" value="' + (v || '') + '" placeholder="' + esc(ph) + '">';
   let h = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div><div class="page-head"><div><h1>설정</h1><div class="page-sub">비워 두면 기록에서 자동으로 계산해요</div></div></div>';
-  h += '<form id="settings-form" class="card" novalidate data-goal="' + (+S.goalDist > 0 ? 1 : 0) + '"><div class="card-head"><h2>내 정보</h2></div>' +
+  h += '<form id="settings-form" class="card" novalidate data-goal="' + (+S.goalDist > 0 ? 1 : 0) + '" data-map="' + (S.mapKind || 'osm') + '"><div class="card-head"><h2>내 정보</h2></div>' +
     fld('sex', '성별', seg('sex', S.sex || '', [['', '자동'], ['male', '남성'], ['female', '여성']]), '심박 기반 부하 계산과 체력 나이에 쓰여요.') +
     fld('birthYear', '출생 연도', num2('birthYear', S.birthYear, P.ageKnown ? '자동: ' + (civilFromDays(st.M.today)[0] - P.age) : '예: 1990', 1920, 2020), '', true) +
     fld('weight', '체중 (kg)', num2('weight', S.weight, P.weight ? '자동: ' + P.weight : '예: 68.5', 30, 200, true), '', true) +
@@ -4045,13 +4112,29 @@ function vSettings() {
       '접수한 대회가 있을 때만 적어요. 날짜를 넣으면 그날에 맞춰 기초기 → 강화기 → 피크기 → 테이퍼로 계획하고, 비워 두면 목표 거리에 맞춘 꾸준한 향상 계획을 짜요.', false).replace('class="field', 'class="field goal-only') +
     fld('goalTime', '목표 기록 (선택)', '<input id="goalTime" type="text" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="예: 50:00 또는 3:59:00" value="' + esc(S.goalTime || '') + '">', '시간:분:초처럼 쌍점(:)으로 나눠 적어요. 50:00은 50분, 3:59:00은 3시간 59분이에요. 숫자만 적어도 돼요(35900 → 3:59:00). 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true).replace('class="field', 'class="field goal-only') +
     fld('sleepNeed', '목표 수면 시간', num2('sleepNeed', S.sleepNeed, '8', 5, 11, true), '수면 점수의 시간 기준이에요. 7.5처럼 적어도 돼요.', true) +
+    (TARGET === 'web' ? '<div class="card-head" style="margin-top:14px"><h2>지도</h2></div>' +
+      fld('mapKind', '지도 종류', seg('mapKind', S.mapKind || 'osm', [['osm', '기본 지도'], ['kakao', '카카오맵']]), '기본 지도는 키 없이 바로 써요(오픈스트리트맵). 카카오맵은 한국 지도가 더 자세하지만 무료 키가 필요해요.') +
+      '<div class="kakao-only">' + fld('kakaoKey', '카카오맵 JavaScript 키', '<input id="kakaoKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="키를 붙여 넣으세요" value="' + esc(S.kakaoKey || '') + '">',
+        '<button type="button" class="link" data-act="kakao-help">키 받는 방법 보기</button>', false) + '</div>' : '') +
     '<div style="display:grid;gap:8px;margin-top:14px"><button class="btn block" type="submit" id="btn-save">저장하고 다시 분석</button><button class="btn ghost block" type="button" data-act="reset-settings">자동값으로 되돌리기</button></div>' +
     (st.savedAt ? '<p class="xs muted" style="margin-top:8px;text-align:center">' + esc(st.savedAt) + '에 저장하고 다시 분석했어요</p>' : '') + '</form>';
   mount(zonePreview);
   h += '<section class="card"><div class="card-head"><h2>데이터</h2></div><div class="list">' +
     '<button class="li" data-act="go" data-v="import"><div><div class="t">데이터 가져오기 · 백업</div><div class="m">자동 내보내기·건강 앱 파일 불러오기, 백업, 삭제</div></div>' + IC.chev + '</button>' +
-    '<button class="li" data-act="go" data-v="guide"><div><div class="t">도움말</div><div class="m">사용법, 지표 설명, 정확도와 한계</div></div>' + IC.chev + '</button></div></section>';
+    '<button class="li" data-act="go" data-v="guide"><div><div class="t">도움말</div><div class="m">사용법, 지표 설명, 정확도와 한계</div></div>' + IC.chev + '</button>' +
+    (TARGET === 'web' ? '<button class="li" data-act="share-app"><div><div class="t">친구에게 SOOM 알려주기</div><div class="m">주소만 보내면 돼요. 기록은 각자 폰에만 저장돼요</div></div>' + IC.chev + '</button>' : '') + '</div></section>';
   return h;
+}
+function kakaoHelpSheet() {
+  const site = TARGET === 'web' ? location.origin : 'https://trade-on-master.github.io';
+  return '<div class="grab"></div><h3>카카오맵 키 받는 방법 (무료)</h3><ol class="steps-guide" style="margin:6px 0 12px">' +
+    '<li><span><b>developers.kakao.com</b>에 카카오 계정으로 로그인해요. 처음이면 개발자 등록(약관 동의)을 한 번 해요.</span></li>' +
+    '<li><span><b>내 애플리케이션</b> → <b>애플리케이션 추가하기</b>를 눌러 앱을 만들어요. 앱 이름은 SOOM, 회사명은 본인 이름을 적으면 돼요.</span></li>' +
+    '<li><span>만든 앱에서 <b>제품 설정</b> → <b>카카오맵</b> → <b>사용 설정</b>을 <b>ON</b>으로 켜요.</span></li>' +
+    '<li><span><b>앱 키</b>에서 <b>JavaScript 키</b>를 찾고, 그 키의 <b>JavaScript SDK 도메인</b>(또는 플랫폼 → Web 사이트 도메인)에 아래 주소를 등록해요.<span class="codebox">' + esc(site) + '</span></span></li>' +
+    '<li><span><b>JavaScript 키</b>를 복사해 SOOM 설정의 <b>카카오맵 JavaScript 키</b> 칸에 붙여 넣고 저장해요.</span></li></ol>' +
+    '<p class="xs muted">무료 사용량은 개발자 계정에서 처음 켠 앱 하나에 주어지고, 혼자 쓰기에는 넉넉해요. 카카오 화면의 메뉴 이름은 조금 다를 수 있어요. 키가 맞지 않으면 SOOM은 기본 지도로 보여 주고 이유를 알려 줘요.</p>' +
+    '<button class="btn secondary block" style="margin-top:12px" data-act="close">닫기</button>';
 }
 
 // ---------------- 데이터 가져오기 ----------------
@@ -4116,7 +4199,10 @@ function vImport() {
   if (real) {
     const first = st.M.runs[0], lastR = st.M.runs[st.M.runs.length - 1];
     const dshort = u => u ? fmtDayShort(dayOfUtc(u, localOffsetSec())) : '–';
-    h += '<section class="card"><div class="card-head"><h2>지금 분석 중인 데이터</h2></div><div class="kv">' + mini('러닝', st.M.runs.length + '회') + mini('기간', first ? fmtDayDot(first.day) + ' ~ ' + fmtDayDot(lastR.day) : '–') +
+    const allRuns = D.runs.length, per = (st.settings && st.settings.period) || 'all';
+    h += '<section class="card"><div class="card-head"><h2>지금 분석 중인 데이터</h2></div>' +
+      '<div class="field inline" style="padding-top:0"><label for="period">분석 기간</label><select id="period">' + PERIODS.map(([k, n]) => '<option value="' + k + '"' + (per === k ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>' +
+      '<span class="hint">이 기간의 러닝만 분석해요(최고 기록·체력 추이·주간 거리 등). 가져온 기록은 그대로 남아 있어서 언제든 다시 바꿀 수 있어요.' + (per !== 'all' ? ' 저장된 러닝 ' + allRuns + '회 중 ' + st.M.runs.length + '회를 분석 중이에요.' : '') + '</span></div><div class="kv">' + mini('러닝', st.M.runs.length + '회') + mini('기간', first ? fmtDayDot(first.day) + ' ~ ' + fmtDayDot(lastR.day) : '–') +
       mini('기타 운동', (D.others || []).length + '회') + mini('마지막 가져오기', dshort(D.importedAt)) + mini('자동 내보내기', hasHae ? dshort(D.haeAt) : '아직 없음') + '</div>' +
       (st.saved ? '' : '<p class="xs muted" style="margin-top:8px">이 기기에 저장하지 못했어요. 다음에 열 때 다시 가져오거나 백업 파일을 불러와야 해요.</p>') + '</section>';
   }
@@ -4255,7 +4341,13 @@ document.addEventListener('click', e => {
       const r = st.M.runs.find(x => 'run:' + x.id === st.view); if (r) runChart(r);
       break;
     }
-    case 'segset': { const g = a.closest('.segctl'); g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === a))); zonePreview(); break; }
+    case 'segset': {
+      const g = a.closest('.segctl'); g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === a)));
+      if (g.id === 'mapKind') { const f = $('#settings-form'); if (f) f.dataset.map = v; } else zonePreview();
+      break;
+    }
+    case 'kakao-help': openSheet(kakaoHelpSheet()); break;
+    case 'share-app': shareApp(); break;
     case 'reset-settings': st.settings = {}; st.savedAt = null; LS.set('settings', {}); DB.set('settings', {}); recompute(); render(true); toast('자동값으로 되돌렸어요'); break;
     case 'pick-health': closeSheet(); $('#file-health').click(); break;
     case 'mapfull': openMapFull(v); break;
@@ -4287,7 +4379,11 @@ function saveSettings() {
     maxHR: n('maxHR'), restHR: n('restHR'), lthr: n('lthr'), sleepNeed: n('sleepNeed') || 8,
     runsPerWeek: +f.querySelector('#runsPerWeek').value, longRunDay: +f.querySelector('#longRunDay').value,
     goalDist: +f.querySelector('#goalDist').value, goalDate: f.querySelector('#goalDate').value || '', goalTime: f.querySelector('#goalTime').value.trim(),
+    period: (st.settings && st.settings.period) || 'all',
+    mapKind: f.querySelector('#mapKind') ? (segVal('mapKind') || 'osm') : ((st.settings && st.settings.mapKind) || 'osm'),
+    kakaoKey: f.querySelector('#kakaoKey') ? f.querySelector('#kakaoKey').value.trim() : ((st.settings && st.settings.kakaoKey) || ''),
   };
+  if (S.mapKind === 'kakao' && !S.kakaoKey) return toast('카카오맵을 쓰려면 JavaScript 키를 붙여 넣어 주세요');
   const P = st.M.P, mx = S.maxHR || P.auto.max, rs = S.restHR || P.auto.rest, lt = S.lthr || P.auto.lthr;
   if (mx <= rs + 40) return toast('최대 심박은 안정 심박보다 40 이상 높아야 해요');
   if (lt >= mx || lt <= rs) return toast('젖산역치 심박은 안정 심박과 최대 심박 사이여야 해요');
@@ -4305,6 +4401,10 @@ document.addEventListener('change', e => {
   if (e.target.id === 'goalDist') { const f = $('#settings-form'); if (f) f.dataset.goal = +e.target.value > 0 ? 1 : 0; }
   if (e.target.id === 'goalDate') { const b = document.querySelector('[data-act="cleardate"]'); if (b) b.hidden = !e.target.value; }
   if (e.target.id === 'run-shoe') setRunShoe(e.target.dataset.run, e.target.value);
+  if (e.target.id === 'period') {
+    st.settings = Object.assign({}, st.settings, { period: e.target.value }); LS.set('settings', st.settings); DB.set('settings', st.settings);
+    recompute(); render(true); toast('분석 기간을 ' + (PERIODS.find(x => x[0] === e.target.value) || [, '전체'])[1] + '(으)로 바꿨어요');
+  }
 });
 document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview(); });
 // tidy the goal time when leaving the box: '35900' or '3.59.00' becomes '3:59:00'
@@ -4395,6 +4495,11 @@ async function doBackup() {
     if (err && err.code === 'declined') return;
     toast(err && err.code === 'rate_limited' ? '잠시 후 다시 시도해 주세요' : '백업 파일을 저장하지 못했어요');
   }
+}
+async function shareApp() {
+  const url = location.origin + location.pathname, text = '애플워치 러닝을 가민·코로스처럼 분석해 주는 앱 SOOM이에요. Safari로 열어 홈 화면에 추가해서 써요. 기록은 각자 폰에만 저장돼요.';
+  try { if (navigator.share) { await navigator.share({ title: 'SOOM', text, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('주소를 복사했어요: ' + url); } catch (e) { toast('SOOM 주소: ' + url); }
 }
 async function doDelete() {
   await DB.del('data'); await DB.del('settings'); await DB.del('gear'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); st.newIds = []; st.gear = { shoes: [], pick: {} };
