@@ -5,6 +5,7 @@
 - 이 저장소에는 앱 프로그램(화면 모양과 계산 방법)만 들어 있어요. 러닝·심박·수면 같은 기록은 들어 있지 않아요.
 - 기록은 앱을 연 기기(아이폰) 안에만 저장되고, 어떤 서버로도 보내지 않아요.
 - 지도 그림은 OpenStreetMap에서 받아와요(설정에서 카카오맵으로 바꿀 수 있어요). 지도를 볼 때 그 지역의 지도 그림만 요청해요.
+- 날씨(기온·습도·바람·비, 7일 예보)와 미세먼지는 Open-Meteo에서 받아요. 이때 약 10km 단위로 반올림한 위치와 날짜만 보내요. 설정에서 끌 수 있어요.
 
 ## 아이폰에 설치하기
 
@@ -18,3 +19,5 @@
 - 그다음부터: Health Auto Export가 iCloud Drive → AutoExport → **SOOM** 폴더에 저장한 최신 파일 두 개(SOOM 운동, SOOM 건강)를 **파일 선택**으로 함께 가져와요.
 
 지도: © OpenStreetMap contributors (설정에서 카카오맵 선택 가능) · 지도 라이브러리: Leaflet (BSD-2-Clause)
+
+날씨: [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0) · 미세먼지: Copernicus Atmosphere Monitoring Service(CAMS) 정보를 Open-Meteo를 통해 사용
