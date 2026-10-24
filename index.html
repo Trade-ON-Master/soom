@@ -482,6 +482,37 @@ details.more[open] summary::after { content: "접기"; }
 .wx-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0 2px; }
 .wx-status .link { flex: none; }
 #settings-form[data-wx="off"] .wx-only { display: none; }
+
+/* analysis period typed by the person */
+.period-custom { padding: 2px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.date-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: end; margin-bottom: 6px; }
+.date-pair label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; min-width: 0; }
+.date-pair input { -webkit-appearance: none; appearance: none; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 8px; width: 100%; min-width: 0; min-height: 42px; font-size: 16px; color: var(--ink); }
+.date-pair > span { padding-bottom: 11px; color: var(--muted); }
+
+/* Health Auto Export free trial note */
+.trial-box { display: grid; gap: 4px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--good-soft); font-size: 13px; color: var(--ink-2); }
+.trial-box b { color: var(--good); font-size: 14px; }
+
+/* sunrise / sunset */
+.wx-sun { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+.wx-sun span { display: inline-flex; align-items: center; gap: 5px; }
+.wx-sun b { color: var(--ink); font-weight: 600; }
+.sunic { width: 20px; height: 20px; flex: none; }
+.sunic .su { fill: none; stroke: var(--wx-sun); stroke-width: 1.9; stroke-linecap: round; }
+.sunic .sr { fill: none; stroke: var(--wx-sun); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* one-line memo on a run */
+.memo { position: relative; display: block; margin: -4px 0 12px; }
+.memo input { width: 100%; border: 1px dashed var(--line); background: transparent; border-radius: 10px; padding: 9px 10px 9px 36px; font-size: 16px; color: var(--ink); }
+.memo input::placeholder { color: var(--muted); }
+.memo input:focus { border-style: solid; border-color: var(--accent); background: var(--surface); outline: none; }
+.memo-ic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); display: flex; pointer-events: none; }
+.memo-ic svg { width: 17px; height: 17px; }
+.memo-show { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); margin: 2px 0 4px; }
+.memo-show svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.run-row .main .l3 { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 </style>
 <div id="app">
   <header class="top">
@@ -2046,6 +2077,44 @@ function runWeather(r, om) {
 // share of a run's time lost to the weather (1 = none); used to compare runs fairly
 function wxFactor(r) { return 1 + ((r && r.wx && r.wx.tot) || 0) / 100; }
 
+// ---------- sunrise and sunset ----------
+// computed on the device for a place and a local day (the standard sunrise equation; within a minute or two)
+function sunTimes(lat, lon, day) {
+  if (!isNum(lat) || !isNum(lon) || !isNum(day)) return null;
+  const n = day - 10957, Js = n - lon / 360; // days since 1 Jan 2000; mean solar noon at this longitude
+  const M = ((357.5291 + 0.98560028 * Js) % 360 + 360) % 360, Mr = M * RAD;
+  const C = 1.9148 * Math.sin(Mr) + 0.02 * Math.sin(2 * Mr) + 0.0003 * Math.sin(3 * Mr);
+  const lam = ((M + C + 180 + 102.9372) % 360) * RAD;
+  const Jt = 2451545 + Js + 0.0053 * Math.sin(Mr) - 0.0069 * Math.sin(2 * lam);
+  const dec = Math.asin(Math.sin(lam) * Math.sin(23.4397 * RAD)), phi = lat * RAD;
+  const cw = (Math.sin(-0.833 * RAD) - Math.sin(phi) * Math.sin(dec)) / (Math.cos(phi) * Math.cos(dec));
+  const unix = J => Math.round((J - 2440587.5) * 86400);
+  if (cw > 1 || cw < -1) return { rise: null, set: null, noon: unix(Jt), polar: cw > 1 ? 'night' : 'day' };
+  const w = Math.acos(cw) / RAD / 360;
+  return { rise: unix(Jt - w), set: unix(Jt + w), noon: unix(Jt) };
+}
+function clockKo(t, off) { const s = ((Math.floor(t + (off || 0)) % 86400) + 86400) % 86400, h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h < 12 ? '오전 ' : '오후 ') + ((h % 12) || 12) + ':' + String(m).padStart(2, '0'); }
+// plan days: sunrise/sunset where the person runs, and a note when their usual running time falls in the dark
+function planSun(plan, M) {
+  const loc = M.sun || (M.fc && M.fc.loc) || null; if (!loc) return;
+  const habit = habitHour(M.runs), off = M.off || 0;
+  for (const day of plan.days) {
+    const s = sunTimes(loc.lat, loc.lon, day.d); if (!s || !s.rise) continue;
+    day.sun = { rise: s.rise, set: s.set, off };
+    if (isNum(habit) && day.kind !== 'rest') {
+      const t = day.d * 86400 - off + habit * 3600; // the middle of a usual run that day
+      day.sun.habit = habit;
+      if (t < s.rise - 600) day.sun.note = 'dawn'; else if (t > s.set + 600) day.sun.note = 'dusk';
+    }
+  }
+}
+function sunNoteText(sn) {
+  if (!sn || !sn.note) return '';
+  const hh = hourKo(Math.floor(sn.habit - 0.5));
+  return sn.note === 'dawn' ? '평소 달리는 시간(' + hh + '쯤)은 일출(' + clockKo(sn.rise, sn.off) + ') 전이라 어두워요. 밝은 옷·라이트를 챙기거나, 일출 뒤에 출발하면 더 안전해요.'
+    : '평소 달리는 시간(' + hh + '쯤)은 일몰(' + clockKo(sn.set, sn.off) + ') 뒤라 어두워요. 밝은 옷·라이트를 챙기고, 차가 다니는 길은 피하세요.';
+}
+
 // ---------- forecast ----------
 // Open-Meteo forecast (+ air quality) → compact object kept on the device
 function wxNorm(fj, aj, loc, now) {
@@ -2071,8 +2140,10 @@ function fcUsable(fc, now) { return fc && fc.v === WX_V && fc.H && fc.H.t && fc.
 function localHourOf(t, off) { return Math.floor((((t + off) % 86400) + 86400) % 86400 / 3600); }
 function fcDayRec(fc, d) { return (fc.days || []).find(x => x.d === d) || null; }
 function isDarkAt(fc, t) {
-  const dr = fcDayRec(fc, dayOfUtc(t, fc.off));
-  if (dr && isNum(dr.sunrise) && isNum(dr.sunset)) return t + 1800 < dr.sunrise || t - 1800 > dr.sunset; // the hour starting at t is mostly before sunrise / after sunset
+  const d = dayOfUtc(t, fc.off), dr = fcDayRec(fc, d);
+  let rise = dr && isNum(dr.sunrise) ? dr.sunrise : null, set = dr && isNum(dr.sunset) ? dr.sunset : null;
+  if (rise === null && fc.loc) { const s = sunTimes(fc.loc.lat, fc.loc.lon, d); if (s && s.rise) { rise = s.rise; set = s.set; } }
+  if (rise !== null && set !== null) return t + 1800 < rise || t - 1800 > set; // the hour starting at t is mostly before sunrise / after sunset
   const lh = localHourOf(t, fc.off); return lh < 6 || lh >= 19;
 }
 function isSnowCode(c) { return wxKind(c) === 'snow'; }
@@ -2188,7 +2259,11 @@ function wxAdvice(x, sum, opts) {
   if (cold) out.push(cold.lv >= 1 ? { tone: 'warn', k: 'cold', text: '체감 ' + T(x.at) + '로 매우 추워요. 준비운동을 실내에서 길게 하고, 장갑·모자·넥워머를 챙기세요.' }
     : { tone: 'info', k: 'cold', text: '체감 ' + T(x.at) + '로 쌀쌀해요. 처음 10분은 천천히 달리며 몸을 데우세요.' });
   if (sum && isNum(sum.uv) && sum.uv >= 7 && x.lh <= 15 && x.lh + x.n >= 11 && !x.dark) out.push({ tone: 'info', k: 'uv', text: '자외선이 강한 시간이에요. 모자와 선크림을 챙기세요.' });
-  if (has('dark')) out.push({ tone: 'info', k: 'dark', text: '어두운 시간이에요. 밝은 옷이나 라이트를 챙기세요.' });
+  if (has('dark')) {
+    const sn = opts.sun;
+    out.push({ tone: 'info', k: 'dark', text: sn && sn.rise && x.s < sn.rise ? '일출(' + clockKo(sn.rise, sn.off) + ') 전이라 어두워요. 밝은 옷이나 라이트를 챙기세요.'
+      : sn && sn.set && x.e > sn.set ? '일몰(' + clockKo(sn.set, sn.off) + ') 뒤라 어두워요. 밝은 옷이나 라이트를 챙기세요.' : '어두운 시간이에요. 밝은 옷이나 라이트를 챙기세요.' });
+  } else if (opts.sun && opts.sun.note && !x.dark) out.push({ tone: 'info', k: 'dark', text: sunNoteText(opts.sun) });
   return out;
 }
 
@@ -2203,7 +2278,7 @@ function planWeather(plan, M, ctxBase) {
     const x = bestWindow(fc, day.d, dur, i === 0 ? M.now : 0, habit), sumd = fcDaySummary(fc, day.d);
     if (!x && !sumd) continue;
     const flags = wxFlags(x);
-    day.wx = { sum: sumd, best: x, flags, lv: wxLevel(flags), advice: wxAdvice(x, sumd, { hard: HARD_KINDS.includes(day.kind) }) };
+    day.wx = { sum: sumd, best: x, flags, lv: wxLevel(flags), advice: wxAdvice(x, sumd, { hard: HARD_KINDS.includes(day.kind), sun: day.sun }) };
     if (x && day.kind !== 'rest' && x.heat >= 1) {
       day.heat = round(x.heat, 1);
       day.w = makeWorkout(day.kind, Object.assign({}, ctxBase, { km: day.km, reduce: day.reduce, heat: day.heat }));
@@ -2233,7 +2308,7 @@ function planWeather(plan, M, ctxBase) {
 const DEFAULT_SETTINGS = {
   sex: '', birthYear: null, weight: null, maxHR: null, restHR: null, lthr: null, zoneMethod: 'hrr',
   runsPerWeek: 4, longRunDay: 0, goalDist: 0, goalDate: '', goalTime: '', sleepNeed: 8, period: 'all', mapKind: 'osm', kakaoKey: '',
-  weather: true, wxLocMode: 'auto', wxLoc: null, swaps: [],
+  weather: true, wxLocMode: 'auto', wxLoc: null, swaps: [], map: 'auto', periodFrom: '', periodTo: '',
 };
 const ZONE_NAMES = ['회복', '이지', '템포', '역치', '최대'];
 const LABELS = {
@@ -2466,17 +2541,45 @@ function periodStart(p, today) {
   const days = { '5y': 1826, '3y': 1096, '2y': 731, '1y': 366, '6m': 183 }[p];
   return days ? today - days : -Infinity;
 }
+// the days to analyse: a recent stretch, or dates the person typed (from–to; an empty end means today)
+function periodRange(S, today) {
+  if (S.period === 'custom') {
+    const a = isoToDay(S.periodFrom), b = isoToDay(S.periodTo);
+    if (isNum(a)) return { from: Math.min(a, today), to: isNum(b) ? clamp(b, Math.min(a, today), today) : today, custom: true };
+  }
+  return { from: periodStart(S.period, today), to: today, custom: false };
+}
+function periodLabel(S, today) {
+  const r = periodRange(S, today);
+  if (r.custom) return fmtDayDot(r.from) + ' ~ ' + (r.to === today ? '오늘' : fmtDayDot(r.to));
+  return (PERIODS.find(x => x[0] === S.period) || PERIODS[0])[1];
+}
+// daily records (sleep, HRV, resting HR …) up to a given day only
+function cutDays(days, d) {
+  const out = {};
+  for (const k in days) {
+    const v = days[k];
+    if (!v || typeof v !== 'object' || Array.isArray(v)) { out[k] = v; continue; }
+    const o = {}; for (const key in v) if (!(+key > d)) o[key] = v[key];
+    out[k] = o;
+  }
+  return out;
+}
 function analyze(data, settings, opt) {
   opt = opt || {};
   const S = Object.assign({}, DEFAULT_SETTINGS, settings || {});
   const off = opt.offset !== undefined ? opt.offset : localOffsetSec();
-  const now = opt.now !== undefined ? opt.now : nowUtc();
-  const today = dayOfUtc(now, off);
-  // analysis period chosen by the person (the stored records stay complete; only what is analysed changes)
-  const fromDay = periodStart(S.period, today);
-  const runs = data.runs.filter(r => r.day >= fromDay).sort((a, b) => a.start - b.start);
-  const others = (data.others || []).filter(o => o.day >= fromDay).sort((a, b) => a.start - b.start);
-  if (fromDay > -Infinity) data = Object.assign({}, data, { runs, others });
+  let now = opt.now !== undefined ? opt.now : nowUtc();
+  let today = dayOfUtc(now, off);
+  const realToday = today;
+  // analysis period chosen by the person (the stored records stay complete; only what is analysed changes).
+  // A stretch that ended in the past is analysed as of its last day, as if that day were today.
+  const range = periodRange(S, today), fromDay = range.from;
+  let asOf = null;
+  if (range.to < today) { asOf = range.to; today = asOf; now = (asOf + 1) * 86400 - off - 1; }
+  const runs = data.runs.filter(r => r.day >= fromDay && r.day <= today).sort((a, b) => a.start - b.start);
+  const others = (data.others || []).filter(o => o.day >= fromDay && o.day <= today).sort((a, b) => a.start - b.start);
+  if (fromDay > -Infinity || asOf !== null) data = Object.assign({}, data, { runs, others, days: asOf !== null ? cutDays(data.days, asOf) : data.days });
   const P = buildProfile(data, S, today);
   const female = P.sex === 'female';
   // weather during each run (Apple's temperature/humidity + Open-Meteo wind and rain when fetched)
@@ -2769,7 +2872,8 @@ function analyze(data, settings, opt) {
   const recoveryNow = recoveryAt(now);
 
   const M = {
-    S, today, now, off, evalDay, lastDataDay, stale: staleDays, ref, fromDay, fc: S.weather === false ? null : opt.fc || null,
+    S, today, now, off, evalDay, lastDataDay, stale: staleDays, ref, fromDay, realToday, asOf, range: { from: isNum(fromDay) && fromDay > -Infinity ? fromDay : (runs.length ? runs[0].day : today), to: today, custom: range.custom },
+    fc: S.weather === false || asOf !== null ? null : opt.fc || null, sun: opt.sun || null,
     P, runs, others, LT, level, levelPerf, levelHR, appleVO2, appleDays, preds, paces,
     pmc: { d0, load, ctl, atl }, ctl: c, atl: a, acwr, form, fatigue, intensityTrend: it, itBand, load7, load28, recLoad, loadPerKm,
     status: Object.assign({ key: status, vo2Delta }, STATUS[status]),
@@ -3079,6 +3183,7 @@ function buildPlan(M) {
     recoveryWeek, weekKm: round(weekKm, 1), longKm: round(longKm, 1), raceDay, weeksToRace, racePace, raceName, goalDist,
     days, today: days[0], adjust, doneToday,
   };
+  planSun(plan, M); // sunrise/sunset where the person runs (computed on the device)
   planWeather(plan, M, ctxBase); // forecast: slower paces in the heat, advice, and a better day for key sessions
   return plan;
 }
@@ -3115,7 +3220,7 @@ function parseGoalTime(s) {
 
 function buildInsights(M) {
   const out = [], today = M.today;
-  if (M.stale !== null && M.stale >= 2) out.push({ tone: 'info', title: '데이터가 ' + M.stale + '일 전 기준이에요', text: '건강 앱에서 다시 내보내 가져오면 오늘 컨디션과 추천이 정확해져요.' });
+  if (M.stale !== null && M.stale >= 2 && !M.asOf) out.push({ tone: 'info', title: '데이터가 ' + M.stale + '일 전 기준이에요', text: '건강 앱에서 다시 내보내 가져오면 오늘 컨디션과 추천이 정확해져요.' });
   const r7 = M.runs.filter(r => r.day > M.ref - 7 && r.day <= M.ref);
   const km7 = sum(r7.map(r => r.dist)) / 1000;
   if (M.avg4 > 5 && km7 > M.avg4 * 1.3 && km7 - M.avg4 > 5) out.push({ tone: 'warn', title: '주간 거리 급증', text: '최근 7일 ' + fmtKm(km7 * 1000) + 'km로 4주 평균(' + fmtKm(M.avg4 * 1000) + 'km)보다 ' + Math.round((km7 / M.avg4 - 1) * 100) + '% 많아요. 주당 10% 이내로 늘려야 부상 위험이 낮아요.' });
@@ -3133,7 +3238,7 @@ function buildInsights(M) {
   if (prTxt.length) out.push({ tone: 'good', title: '새 개인 기록!', text: prTxt.join(', ') + ' — 축하해요!' });
   if (M.status.key === 'productive') out.push({ tone: 'good', title: '체력이 오르고 있어요', text: '최근 4주 동안 러닝 VO2max 추정치가 ' + signed(M.status.vo2Delta, 1) + ' 변했어요.' });
   const lastRun = M.runs[M.runs.length - 1];
-  if (lastRun && today - lastRun.day >= 5 && (M.stale === null || M.stale < 2)) out.push({ tone: 'info', title: (today - lastRun.day) + '일째 러닝이 없어요', text: '가볍게 20~30분만 달려도 체력 유지에 도움이 돼요.' });
+  if (lastRun && today - lastRun.day >= 5 && (M.stale === null || M.stale < 2) && !M.asOf) out.push({ tone: 'info', title: (today - lastRun.day) + '일째 러닝이 없어요', text: '가볍게 20~30분만 달려도 체력 유지에 도움이 돼요.' });
   const lw = M.weeks[M.weeks.length - 2];
   if (lw && lw.km > 10 && lw.long / lw.km > 0.45) out.push({ tone: 'info', title: '장거리 비중이 높아요', text: '지난주 거리의 ' + Math.round(lw.long / lw.km * 100) + '%를 한 번에 달렸어요. 장거리는 주간 거리의 30% 안팎이 적당해요.' });
   return out;
@@ -3414,7 +3519,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "3933ac7d63";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "e363359420"; let KAKAO_KEY = "";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -3431,6 +3536,7 @@ const IC = {
   shoe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 17.6V13c0-.6.4-1 1-1.1l3.1-.5 2.6-3.6 2.4 1.5c1.2.8 2.6 1.2 4 1.2h.4l3.6 2c.8.4 1.3 1.3 1.3 2.2v2.9a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1Z"/><path d="M2.8 15.4h18.4"/><path d="m10.4 10.6.9-1.1M12.6 11.5l.8-1.1"/></svg>',
   expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>',
   map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3.5 6.2v13.6L9 17.6l6 2.4 5.5-2.2V4.2L15 6.4 9 4Z"/><path d="M9 4v13.6M15 6.4V20"/></svg>',
+  pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14.5 7.5 3 3"/></svg>',
   chev: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
 };
 function infoBtn(key) { return '<button type="button" class="info" data-act="info" data-v="' + key + '" aria-label="설명 보기">?</button>'; }
@@ -3794,15 +3900,24 @@ function addTiles(map, el, k) {
   });
 }
 
-// ---- Kakao Map (optional): with the person's own free JavaScript key ----
+// ---- Kakao Map: SOOM's own key (built in), or the person's own free JavaScript key ----
+// Kakao counts one call each time a map is created; the free amount (300,000 a day) is far more than SOOM needs.
 let KAKAO = null; // promise of the loaded SDK
-function kakaoKey() { const S = st.settings || {}; return S.mapKind === 'kakao' && S.kakaoKey ? String(S.kakaoKey).trim() : ''; }
+function kakaoKey() {
+  const S = st.settings || {};
+  if (S.map === 'osm') return '';
+  if (S.mapKind === 'kakao' && S.kakaoKey) return String(S.kakaoKey).trim(); // a key the person entered themselves
+  return KAKAO_KEY || '';
+}
+// Kakao Map shows Korea in detail and little elsewhere: runs abroad stay on OpenStreetMap
+function inKorea(lat, lon) { return lat >= 33 && lat <= 38.9 && lon >= 124.5 && lon <= 132; }
+function routeInKorea(rt) { const n = rt.la.length; return inKorea(rt.la[0], rt.lo[0]) && inKorea(rt.la[n - 1], rt.lo[n - 1]) && inKorea(rt.la[n >> 1], rt.lo[n >> 1]); }
 function loadKakao(key) {
   if (window.kakao && window.kakao.maps && window.kakao.maps.LatLng) return Promise.resolve(window.kakao);
   if (KAKAO && KAKAO.key === key) return KAKAO.p;
   const p = new Promise((res, rej) => {
     const sc = document.createElement('script');
-    sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=' + encodeURIComponent(key);
+    sc.src = 'https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&libraries=services&appkey=' + encodeURIComponent(key);
     const t = setTimeout(() => rej(new Error('timeout')), 9000);
     sc.onload = () => { try { window.kakao.maps.load(() => { clearTimeout(t); res(window.kakao); }); } catch (e) { clearTimeout(t); rej(e); } };
     sc.onerror = () => { clearTimeout(t); rej(new Error('load')); };
@@ -3867,11 +3982,11 @@ function drawRouteMap(el, r, opts) {
   opts = opts || {};
   if (!el || !mapsOn() || !r || !r.route || r.route.la.length < 2) return null;
   const key = kakaoKey();
-  if (key && !opts.noKakao) {
+  if (key && !opts.noKakao && routeInKorea(r.route)) {
     // Kakao first; if the key or the site address is not set up right, fall back to OpenStreetMap and say why
     const holder = { remove() { if (holder.m) holder.m.remove(); holder.dead = true; } };
     loadKakao(key).then(k => { if (holder.dead || !el.isConnected) return; holder.m = drawKakao(el, r, !!opts.full, k); })
-      .catch(() => { if (holder.dead || !el.isConnected) return; holder.m = drawRouteMap(el, r, Object.assign({}, opts, { noKakao: true })); mapNote(el, '카카오맵을 불러오지 못해 기본 지도로 보여 줘요. 설정의 카카오맵 키와 사이트 주소 등록을 확인해 주세요.'); });
+      .catch(() => { if (holder.dead || !el.isConnected) return; holder.m = drawRouteMap(el, r, Object.assign({}, opts, { noKakao: true })); mapNote(el, KAKAO_KEY && !(st.settings || {}).kakaoKey ? '카카오맵을 불러오지 못해 기본 지도로 보여 줘요. 인터넷 연결을 확인해 주세요.' : '카카오맵을 불러오지 못해 기본 지도로 보여 줘요. 설정의 카카오맵 키와 사이트 주소 등록을 확인해 주세요.'); });
     if (!opts.full) { MAPS.add(holder); if (opts.onTap) el.addEventListener('click', e => { if (!e.target.closest('a')) opts.onTap(); }); }
     return holder;
   }
@@ -3931,7 +4046,10 @@ const WX_DV = 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_
 const WX_TAIL = '&timeformat=unixtime&wind_speed_unit=ms&timezone=auto';
 
 function wxOn() { return TARGET === 'web' && (!st.settings || st.settings.weather !== false); }
-function wxOpt() { return wxOn() ? { wx: st.wx.runs, fc: st.wx.fc } : { wx: TARGET === 'web' ? st.wx.runs : null }; }
+function wxOpt() {
+  const home = st.data ? wxHome() : null, sun = home ? { lat: home.lat, lon: home.lon } : null; // sunrise/sunset need only the place, no internet
+  return wxOn() ? { wx: st.wx.runs, fc: st.wx.fc, sun } : { wx: TARGET === 'web' ? st.wx.runs : null, sun };
+}
 function wxLoc(lat, lon, mode) { const a = Math.round(lat * 10) / 10, b = Math.round(lon * 10) / 10; return { lat: a, lon: b, key: a.toFixed(1) + ',' + b.toFixed(1), mode: mode || 'runs' }; }
 function wxRunLoc(r) { const rt = r.route; return rt && rt.la && rt.la.length ? wxLoc(rt.la[0], rt.lo[0]) : null; }
 // where to get the forecast: the place chosen in settings, or where most recent outdoor runs started
@@ -3964,13 +4082,13 @@ function wxHourly(j) {
 }
 // outdoor runs that still need weather, those inside the analysis period and newest first
 function wxPending(now) {
-  const from = periodStart((st.settings || {}).period, todayDay()), out = [];
+  const pr = periodRange(Object.assign({}, DEFAULT_SETTINGS, st.settings || {}), todayDay()), out = [];
   for (const r of st.data.runs) {
     if (r.indoor) continue;
     const L = wxRunLoc(r); if (!L) continue;
     const have = st.wx.runs[r.id];
     if (have && !(have.none && r.end > now - 10 * 86400 && now - have.at > 6 * 3600)) continue; // retry a recent miss now and then
-    out.push(Object.assign(L, { r, recent: r.end > now - 89 * 86400, inP: r.day >= from }));
+    out.push(Object.assign(L, { r, recent: r.end > now - 89 * 86400, inP: r.day >= pr.from && r.day <= pr.to }));
   }
   return out.sort((a, b) => (b.inP - a.inP) || (b.r.start - a.r.start));
 }
@@ -4020,19 +4138,86 @@ async function wxSync(force) {
   }
   if (runsChanged || fcChanged) { try { recompute(); } catch (e) { console.error(e); } }
   if (runsChanged || fcChanged || force || st.wx.err !== err0) refreshView(); // nothing new: leave the screen alone
+  if (st.wx.fc) wxNameHome().catch(() => {});
 }
 // re-draw after background work, unless the person is in the middle of something
 function refreshView() {
   // never redraw a screen with a form on it (unsaved changes would be lost); just update the weather status line there
   if (st.view === 'settings') { const el = document.querySelector('.wx-status'); if (el) el.outerHTML = wxStatusHTML(); st.dirty = true; return; }
-  if ($('#sheet-root').innerHTML || document.querySelector('.mapfull') || st.importing || st.view === 'import') { st.dirty = true; return; }
+  const ae = document.activeElement;
+  if ($('#sheet-root').innerHTML || document.querySelector('.mapfull') || st.importing || st.view === 'import' || (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) { st.dirty = true; return; }
   render(true);
 }
 function wxLocate() {
   return new Promise((res, rej) => {
     if (!navigator.geolocation) return rej(new Error('no geolocation'));
-    navigator.geolocation.getCurrentPosition(p => res({ lat: Math.round(p.coords.latitude * 10) / 10, lon: Math.round(p.coords.longitude * 10) / 10, at: Math.round(nowUtc()) }), rej, { enableHighAccuracy: false, timeout: 12000, maximumAge: 3600000 });
+    navigator.geolocation.getCurrentPosition(p => res({ lat: Math.round(p.coords.latitude * 10) / 10, lon: Math.round(p.coords.longitude * 10) / 10,
+      plat: Math.round(p.coords.latitude * 1000) / 1000, plon: Math.round(p.coords.longitude * 1000) / 1000, at: Math.round(nowUtc()) }), rej, { enableHighAccuracy: false, timeout: 12000, maximumAge: 3600000 });
   });
+}
+
+// ---------- place names (시·구·동) for where the forecast is ----------
+// Looked up once per place with Kakao (when a Kakao key is set) or OpenStreetMap, from a point rounded to about 100 m, and kept on the device.
+const PLACE_Q = new Map();
+const SIDO = { '서울특별시': '서울', '부산광역시': '부산', '대구광역시': '대구', '인천광역시': '인천', '광주광역시': '광주', '대전광역시': '대전', '울산광역시': '울산', '세종특별자치시': '세종',
+  '경기도': '경기', '강원특별자치도': '강원', '강원도': '강원', '충청북도': '충북', '충청남도': '충남', '전북특별자치도': '전북', '전라북도': '전북', '전라남도': '전남', '경상북도': '경북', '경상남도': '경남', '제주특별자치도': '제주' };
+function joinRegion(parts) {
+  const out = [];
+  for (let p of parts) { p = String(p || '').trim(); if (!p || out.includes(p) || out.includes(SIDO[p])) continue; out.push(out.length === 0 && SIDO[p] ? SIDO[p] : p); }
+  return out.join(' ') || null;
+}
+function placeShort(name) { const t = String(name || '').split(' '); return t.slice(-2).join(' '); }
+function kakaoRegion(key, lat, lon) {
+  return loadKakao(key).then(k => new Promise((res, rej) => {
+    if (!k.maps.services || !k.maps.services.Geocoder) return rej(new Error('no geocoder'));
+    new k.maps.services.Geocoder().coord2RegionCode(lon, lat, (result, status) => {
+      if (status !== k.maps.services.Status.OK || !result || !result.length) return rej(new Error('kakao ' + status));
+      const b = result.find(x => x.region_type === 'B') || result[0]; // 법정동: the name used in addresses
+      res(joinRegion([b.region_1depth_name, b.region_2depth_name, b.region_3depth_name]));
+    });
+  }));
+}
+async function osmRegion(lat, lon) {
+  const j = await wxGet('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&addressdetails=1&accept-language=ko&lat=' + lat.toFixed(3) + '&lon=' + lon.toFixed(3));
+  const a = j && j.address; if (!a) return null;
+  return joinRegion([a.province || a.state, a.city, a.borough || a.county || a.city_district, a.quarter || a.suburb || a.neighbourhood || a.town || a.village]);
+}
+function placeName(lat, lon) {
+  lat = Math.round(lat * 1000) / 1000; lon = Math.round(lon * 1000) / 1000;
+  const k = lat.toFixed(3) + ',' + lon.toFixed(3), cache = LS.get('places') || {};
+  if (cache[k]) return Promise.resolve(cache[k]);
+  if (PLACE_Q.has(k)) return PLACE_Q.get(k);
+  const p = (async () => {
+    let name = null; const key = typeof kakaoKey === 'function' ? kakaoKey() : '';
+    if (key) { try { name = await kakaoRegion(key, lat, lon); } catch (e) { name = null; } }
+    if (!name) { try { name = await osmRegion(lat, lon); } catch (e) { name = null; } }
+    if (name) { const c = LS.get('places') || {}; c[k] = name; const ks = Object.keys(c); if (ks.length > 60) delete c[ks[0]]; LS.set('places', c); }
+    return name;
+  })();
+  PLACE_Q.set(k, p); p.then(() => PLACE_Q.delete(k), () => PLACE_Q.delete(k));
+  return p;
+}
+// the point to name for the forecast area: the phone's position, or the start of the latest run in the usual area
+function homePoint(home) {
+  const S = st.settings || {};
+  if (home.mode === 'here' && S.wxLoc) return isNum(S.wxLoc.plat) ? [S.wxLoc.plat, S.wxLoc.plon] : [S.wxLoc.lat, S.wxLoc.lon];
+  const r = st.data && st.data.runs.filter(x => !x.indoor && wxRunLoc(x) && wxRunLoc(x).key === home.key).sort((a, b) => b.start - a.start)[0];
+  return r ? [r.route.la[0], r.route.lo[0]] : [home.lat, home.lon];
+}
+async function wxNameHome() {
+  const home = wxHome(); if (!home) return;
+  const id = home.mode + ':' + home.key + (home.mode === 'here' && st.settings.wxLoc ? ':' + st.settings.wxLoc.at : '');
+  if (st.wx.place && st.wx.place.id === id && st.wx.place.name) return;
+  const [la, lo] = homePoint(home), name = await placeName(la, lo);
+  if (!name) return;
+  st.wx.place = { id, name, mode: home.mode };
+  LS.set('wxplace', st.wx.place);
+  refreshView();
+}
+function wxPlaceTxt(short) {
+  const p = st.wx.place, home = wxHome();
+  if (!p || !home || !p.id.startsWith(home.mode + ':' + home.key)) return '';
+  return short ? placeShort(p.name) : p.name;
 }
 
 // ---------- drawing ----------
@@ -4057,6 +4242,8 @@ function wxIcon(code, night, cls) {
   return '<svg class="wxi' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + body + '</svg>';
 }
 const deg = v => isNum(v) ? Math.round(v) + '°' : '–';
+const SUN_UP = '<svg class="sunic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16M7.5 18a4.5 4.5 0 0 1 9 0" class="su"/><path d="M12 4.5v3.5M9.5 6.5 12 4l2.5 2.5M4.6 11.6l1.6 1M19.4 11.6l-1.6 1" class="sr"/></svg>';
+const SUN_DOWN = '<svg class="sunic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18h16M7.5 18a4.5 4.5 0 0 1 9 0" class="su"/><path d="M12 4v3.5M9.5 5 12 7.5 14.5 5M4.6 11.6l1.6 1M19.4 11.6l-1.6 1" class="sr"/></svg>';
 const PM_TONE = ['good', 'ok', 'warn', 'bad'];
 function pmChip(pm25, pm10) {
   const l = pmLevel(pm25, pm10); if (l < 0) return '';
@@ -4067,7 +4254,7 @@ function wxAgo(fc) { const m = Math.round((nowUtc() - fc.at) / 60); return m < 2
 
 // 리포트: weather now, the next hours, and the best time to run
 function wxNowCard() {
-  if (!wxOn() || isDemo() && !st.wx.fc) return '';
+  if (!wxOn() || isDemo() && !st.wx.fc || st.M.asOf) return '';
   const M = st.M, fc = fcUsable(st.wx.fc, M.now);
   const head = '<div class="card-head"><h2>러닝 날씨 ' + infoBtn('bestTime') + '</h2>';
   if (!fc) {
@@ -4083,7 +4270,8 @@ function wxNowCard() {
   let di = days.findIndex((d, i) => d.kind !== 'rest' && !(i === 0 && done) && d.wx && d.wx.best);
   if (di < 0) di = days[0].wx && days[0].wx.best && !done ? 0 : 1;
   const dw = days[di] && days[di].wx, best = dw && dw.best, dLbl = di === 0 ? '오늘' : dayName(days[di].d);
-  let h = '<section class="card wx-card">' + head + '<span class="xs muted">' + (fc.loc && fc.loc.mode === 'here' ? '현재 위치' : '최근 러닝 장소') + ' 부근 · ' + wxAgo(fc) + '</span></div>';
+  const place = wxPlaceTxt(true) || (fc.loc && fc.loc.mode === 'here' ? '현재 위치' : '최근 러닝 장소');
+  let h = '<section class="card wx-card">' + head + '<span class="xs muted">' + esc(place) + ' 부근 · ' + wxAgo(fc) + '</span></div>';
   h += '<div class="wx-now">' + wxIcon(wc, night, 'wx-big') + '<span class="num wx-t">' + deg(t) + '</span><div class="wx-desc"><b>' + esc(wxName(wc)) + '</b><span>체감 ' + deg(feelsLike(t, rh, ws)) + ' · 습도 ' + (isNum(rh) ? Math.round(rh) + '%' : '–') + '</span><span>바람 ' + (isNum(ws) ? ws.toFixed(1) + 'm/s ' + windName(wd) : '–') + '</span></div></div>';
   if (pmLevel(pm25, pm10) >= 0) h += '<div class="wx-chips">' + pmChip(pm25, pm10) + '</div>';
   if (best) h += '<div class="wx-best"><span class="eyebrow">달리기 좋은 시간 · ' + esc(dLbl) + (days[di].kind !== 'rest' ? ' ' + esc(days[di].w.name) : '') + '</span><b>' + esc(wxWinTxt(best)) + '</b><span class="small ink2">' + deg(best.t) + ' · ' + esc(wxName(best.wc)) + (isNum(best.pp) && best.pp >= 30 ? ' · 비 ' + Math.round(best.pp) + '%' : '') + ' · 바람 ' + (isNum(best.ws) ? best.ws.toFixed(1) + 'm/s' : '–') + (pmLevel(best.pm25, best.pm10) >= 0 ? ' · 미세먼지 ' + PM_NAMES[pmLevel(best.pm25, best.pm10)] : '') + '</span></div>';
@@ -4093,6 +4281,8 @@ function wxNowCard() {
     cells += '<div class="wh' + (inB ? ' best' : '') + '" role="listitem"><span class="h">' + (k === i0 ? '지금' : lh + '시') + '</span>' + wxIcon(H.wc[k], isDarkAt(fc, H.t[k])) + '<b class="tnum">' + deg(H.temp[k]) + '</b><span class="p">' + (H.pp[k] >= 30 ? Math.round(H.pp[k]) + '%' : '') + '</span></div>';
   }
   h += '<div class="wx-hours" role="list" aria-label="앞으로 12시간 날씨">' + cells + '</div>';
+  const sn = days[0].sun || (fc.loc ? Object.assign({ off: M.off }, sunTimes(fc.loc.lat, fc.loc.lon, M.today)) : null);
+  h += sunLine(sn);
   if (dw && dw.advice && dw.advice.length) h += (di === 0 ? '' : '<div class="eyebrow" style="margin-top:10px">' + esc(dLbl) + ' 달리기 조언</div>') + '<div style="margin-top:6px">' + dw.advice.slice(0, 3).map(a => insRow({ tone: a.tone, text: a.text })).join('') + '</div>';
   return h + '<p class="xs muted wx-src">날씨 <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · 미세먼지 CAMS(참고용)</p></section>';
 }
@@ -4104,8 +4294,12 @@ function wxDayMini(d) {
     (d.swapWith ? '<span class="dwx-flag tone-ok">날씨로 바꿈</span>' : x.swap ? '<span class="dwx-flag tone-warn">바꾸기 추천</span>' : x.lv >= 2 ? '<span class="dwx-flag tone-bad">날씨 주의</span>' : '');
 }
 // plan day: best time, advice, and the weather swap
+function sunLine(sn) {
+  if (!sn || !sn.rise) return '';
+  return '<div class="wx-sun"><span>' + SUN_UP + '일출 <b class="tnum">' + clockKo(sn.rise, sn.off) + '</b></span><span>' + SUN_DOWN + '일몰 <b class="tnum">' + clockKo(sn.set, sn.off) + '</b></span></div>';
+}
 function wxPlanNote(day, full) {
-  const x = day.wx; if (!x && !day.swapWith) return '';
+  const x = day.wx; if (!x && !day.swapWith && !day.sun) return '';
   let h = '<div class="wx-plan">';
   if (x && x.best && day.kind !== 'rest') {
     const b = x.best, pl = pmLevel(b.pm25, b.pm10);
@@ -4113,7 +4307,9 @@ function wxPlanNote(day, full) {
   } else if (x && x.sum) h += '<div class="wx-pl-top">' + wxIcon(x.sum.wc, false) + '<div><b>' + esc(wxName(x.sum.wc)) + '</b><span>' + deg(x.sum.tmin) + ' / ' + deg(x.sum.tmax) + (isNum(x.sum.pp) ? ' · 비 ' + Math.round(x.sum.pp) + '%' : '') + '</span></div></div>';
   if (full && x && x.sum) h += '<p class="xs muted" style="margin-top:4px">하루 ' + deg(x.sum.tmin) + '–' + deg(x.sum.tmax) + (isNum(x.sum.pp) ? ' · 강수확률 ' + Math.round(x.sum.pp) + '%' : '') + (isNum(x.sum.ws) ? ' · 최대 바람 ' + x.sum.ws.toFixed(1) + 'm/s' : '') + (x.sum.pl >= 0 ? ' · 미세먼지 ' + PM_NAMES[x.sum.pl] : '') + '</p>';
   // a mild-heat note is already covered by the slower target paces above
+  h += sunLine(day.sun);
   if (x && day.kind !== 'rest') h += (x.advice || []).filter(a => !(a.k === 'heat' && a.tone === 'info' && day.heat)).slice(0, full ? 6 : 2).map(a => '<div class="adjust tone-' + a.tone + '">' + esc(a.text) + '</div>').join('');
+  else if (!x && day.sun && day.sun.note) h += '<div class="adjust tone-info">' + esc(sunNoteText(day.sun)) + '</div>'; // no forecast: the dark-hours note still applies
   if (x && x.swap) {
     const o = st.M.plan.days.find(dd => dd.d === x.swap.d);
     h += '<div class="wx-swap"><p class="small">날씨가 더 좋은 <b>' + esc(dayName(x.swap.d)) + '</b>과 훈련을 바꾸는 걸 추천해요' + (o ? ' (' + esc(day.w.name) + ' ↔ ' + esc(o.w.name) + ')' : '') + '.</p><button class="btn small" data-act="wx-swap" data-a="' + day.d + '" data-b="' + x.swap.d + '">바꾸기</button></div>';
@@ -4146,7 +4342,8 @@ function wxStatusHTML() {
   const S = st.settings || {};
   const parts = [];
   parts.push(fc ? '예보 ' + timeKo(fc.at, localOffsetSec()) + ' 업데이트' : st.wx.busy ? '예보 불러오는 중' : '예보 아직 없음');
-  if (S.wxLocMode === 'here' && S.wxLoc) parts.push('현재 위치 (위도 ' + S.wxLoc.lat.toFixed(1) + ', 경도 ' + S.wxLoc.lon.toFixed(1) + ')');
+  const nm = wxPlaceTxt(false), here = S.wxLocMode === 'here' && S.wxLoc;
+  if (here || nm) parts.push((here ? '현재 위치' : '최근 러닝 장소') + (nm ? ': ' + nm : here ? ' 확인됨' : ''));
   if (runs.length) parts.push('지난 러닝 날씨 ' + have + '/' + runs.length + '회');
   return '<div class="wx-status"><span class="xs muted">' + esc(parts.join(' · ')) + (st.wx.err ? '<br>' + esc(st.wx.err) : '') + '</span><button type="button" class="link" data-act="wx-refresh">지금 새로 받기</button></div>';
 }
@@ -4158,7 +4355,7 @@ function useChips(uses) { return (uses && uses.length ? uses : ['daily']).map(u 
 function shoeTone(p) { return p >= 1 ? 'bad' : p >= 0.8 ? 'warn' : 'good'; }
 
 function vShoes() {
-  const g = gearOf(), M = st.M, stats = gearStats(g, M.runs, M.today);
+  const g = gearOf(), M = st.M, stats = gearStats(g, st.data.runs, todayDay());
   const act = g.shoes.filter(s => !s.retired), old = g.shoes.filter(s => s.retired);
   let h = '<div class="page-head"><div><h1>러닝화</h1><div class="page-sub">달린 거리를 러닝화별로 더해 교체 시기를 알려 줘요</div></div><button class="btn small" data-act="shoe-add">' + IC.plus + '추가</button></div>';
   if (!g.shoes.length) {
@@ -4190,7 +4387,7 @@ function shoeCard(s, x, M) {
 // add / edit sheet
 function shoeSheet(id) {
   const g = gearOf(), s = id ? g.shoes.find(x => x.id === id) : null;
-  const v = s || { name: '', uses: ['daily'], start: dayISO(st.M.today), startKm: '', life: SHOE_LIFE, primary: false };
+  const v = s || { name: '', uses: ['daily'], start: dayISO(todayDay()), startKm: '', life: SHOE_LIFE, primary: false };
   const chips = SHOE_USES.map(([k, n, d]) => '<button type="button" class="usechip" data-act="shoe-use" data-v="' + k + '" aria-pressed="' + (v.uses || []).includes(k) + '">' + n + (d ? '<small>' + d + '</small>' : '') + '</button>').join('');
   let h = '<div class="grab"></div><h3>' + (s ? '러닝화 수정' : '러닝화 추가') + '</h3><form id="shoe-form" data-id="' + (s ? s.id : '') + '" novalidate>' +
     '<div class="field"><label for="shoe-name">이름</label><input id="shoe-name" type="text" maxlength="40" autocomplete="off" placeholder="예: 노바블라스트 5" value="' + esc(v.name) + '"></div>' +
@@ -4211,7 +4408,7 @@ function saveShoe() {
   if (!name) return toast('러닝화 이름을 적어 주세요');
   const uses = Array.from(f.querySelectorAll('#shoe-uses [aria-pressed="true"]')).map(b => b.dataset.v);
   if (!uses.length) return toast('용도를 하나 이상 골라 주세요');
-  const start = f.querySelector('#shoe-start').value || dayISO(st.M.today);
+  const start = f.querySelector('#shoe-start').value || dayISO(todayDay());
   const km = parseFloat(f.querySelector('#shoe-km').value), life = parseFloat(f.querySelector('#shoe-life').value);
   const g = gearOf(), id = f.dataset.id;
   const data = { name, uses, start, startKm: isNum(km) && km > 0 ? round(km, 1) : 0, life: isNum(life) && life >= 100 ? Math.round(life) : SHOE_LIFE, primary: f.querySelector('#shoe-primary').checked };
@@ -4222,7 +4419,7 @@ function saveShoe() {
 }
 function shoeAct(act, id) {
   const g = gearOf(), s = g.shoes.find(x => x.id === id); if (!s) return;
-  if (act === 'retire') { s.retired = true; s.retiredOn = dayISO(st.M.today); toast('\'' + s.name + '\'을(를) 은퇴시켰어요'); }
+  if (act === 'retire') { s.retired = true; s.retiredOn = dayISO(todayDay()); toast('\'' + s.name + '\'을(를) 은퇴시켰어요'); }
   else if (act === 'unretire') { s.retired = false; s.retiredOn = ''; toast('\'' + s.name + '\'을(를) 다시 신어요'); }
   else if (act === 'del') {
     const b = document.querySelector('[data-act="shoe-del"]');
@@ -4250,7 +4447,7 @@ function setRunShoe(runId, v) {
 // on the report: a shoe close to its replacement point
 function shoeAlert() {
   const g = gearOf(); if (!g.shoes.length || isDemo()) return '';
-  const stats = gearStats(g, st.M.runs, st.M.today);
+  const stats = gearStats(g, st.data.runs, todayDay());
   const due = g.shoes.filter(s => !s.retired && stats[s.id].pct >= 0.85).sort((a, b) => stats[b.id].pct - stats[a.id].pct);
   if (!due.length) return '';
   const s = due[0], x = stats[s.id];
@@ -4276,10 +4473,30 @@ function freshText() {
 // ---------------- 리포트 (첫 화면: 달리기를 마친 뒤 보는 요약) ----------------
 function vToday() {
   const M = st.M;
-  let h = '<div class="page-head"><div><h1>리포트</h1><div class="page-sub">' + fmtDay(M.today) + ' · ' + freshText() + '</div></div></div>';
+  let h = '<div class="page-head"><div><h1>리포트</h1><div class="page-sub">' + fmtDay(M.today) + ' · ' + (M.asOf ? '지난 기간 보기' : freshText()) + '</div></div></div>';
+  if (M.asOf) return h + rangeSummaryCard() + latestRunReport() + keyTiles() + insightsCard(); // looking back: today's recovery, plan and weather don't apply
   if (!isDemo()) h += syncRow() + shoeAlert();
-  h += latestRunReport() + wxNowCard() + recoveryNextCard() + weekStrip() + keyTiles() + insightsCard();
+  h += rangeSummaryCard() + latestRunReport() + wxNowCard() + recoveryNextCard() + weekStrip() + keyTiles() + insightsCard();
   return h;
+}
+// the analysis period typed by the person: what happened in it
+function rangeSummaryCard() {
+  const M = st.M; if (!M.range || !M.range.custom) return '';
+  const runs = M.runs, from = M.range.from, to = M.range.to, nDays = to - from + 1;
+  const km = sum(runs.map(r => r.dist)) / 1000, time = sum(runs.map(r => r.moving)), longest = runs.length ? Math.max(...runs.map(r => r.dist)) / 1000 : 0;
+  const prs = runs.reduce((n, r) => n + (r.prs ? r.prs.length : 0), 0);
+  let v0 = NaN; for (let d = from; d <= to && !isNum(v0); d++) v0 = at(M.LT, d);
+  const v1 = M.level;
+  let h = '<section class="card accent"><div class="card-head"><h2>기간 요약</h2><button class="link" data-act="period-edit">기간 바꾸기</button></div>' +
+    '<p class="small ink2" style="margin:-6px 0 10px">' + esc(fmtDayFull(from)) + ' ~ ' + esc(to === M.realToday ? '오늘' : fmtDayFull(to)) + ' · ' + nDays + '일</p>';
+  h += '<div class="grid3">' + stat('러닝', runs.length, '회') + stat('거리', km.toFixed(1), 'km') + stat('달린 시간', Math.floor(time / 3600), '시간 ' + Math.round(time % 3600 / 60) + '분') + '</div>';
+  h += '<div class="grid3" style="margin-top:10px">' + stat('평균 페이스', km > 0 ? fmtPace(time / km) : '–', '/km') + stat('주 평균', (km / Math.max(1, nDays / 7)).toFixed(1), 'km') + stat('최장 거리', longest.toFixed(1), 'km') + '</div>';
+  const notes = [];
+  if (isNum(v0) && isNum(v1)) notes.push('러닝 VO2max ' + v0.toFixed(1) + ' → ' + v1.toFixed(1) + ' (' + signed(v1 - v0, 1) + ')');
+  if (prs) notes.push('기록 경신 ' + prs + '번');
+  if (notes.length) h += '<p class="small ink2" style="margin-top:10px">' + esc(notes.join(' · ')) + '</p>';
+  if (M.asOf) h += '<p class="xs muted" style="margin-top:6px">' + esc(fmtDay(M.asOf)) + '을 오늘처럼 놓고 체력·회복·기록을 계산했어요. 오늘의 회복·훈련 계획·날씨는 숨겼어요.</p>';
+  return h + '</section>';
 }
 function syncRow() {
   const D = st.data, M = st.M;
@@ -4303,6 +4520,7 @@ function latestRunReport() {
     h += '<div class="map map-hero" id="map-latest" role="img" aria-label="지도 위 러닝 경로"></div>';
     mount(() => drawRouteMap($('#map-latest'), r, { onTap: () => go('run:' + r.id) }));
   }
+  if (noteFor(r)) h += '<p class="memo-show">' + IC.pen + esc(noteFor(r)) + '</p>';
   h += '<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:8px"><div class="hero-v" style="font-size:52px">' + kmTxt(r.dist, 2) + '<span class="unit">km</span></div><div style="margin-bottom:8px">' + labelChip(r.label) + (r.prs && r.prs.length ? ' ' + pill('기록 경신', 'ok') : '') + '</div></div>';
   h += '<div class="grid3" style="margin-top:8px">' + stat('운동 시간', fmtDur(r.dur), '') + stat('평균 페이스', fmtPace(pace), '/km') + stat('평균 심박', r.hrAvg ? Math.round(r.hrAvg) : '–', 'bpm') + '</div>';
   h += '<div class="te" style="margin-top:14px">' + teBars('유산소', r.teA) + teBars('무산소', r.teN) + '</div>';
@@ -4396,13 +4614,13 @@ function keyTiles() {
     '<button class="tile" data-act="tab" data-v="training"><div class="stat"><div class="k">훈련 상태</div><div style="margin:6px 0 4px">' + pill(s.name, s.tone) + '</div><div class="s">' + (M.acwr !== null ? '부하 비율 ' + M.acwr.toFixed(2) : '기록을 더 모으는 중') + '</div></div></button>' +
     '<button class="tile" data-act="tab" data-v="growth"><div class="stat"><div class="k">러닝 VO2max</div><div class="v">' + (isNum(M.level) ? M.level.toFixed(1) : '–') + '</div><div class="s">' + (isNum(d4) ? '4주 전보다 ' + signed(d4, 1) : 'VDOT 기준') + '</div></div></button>' +
     '<button class="tile" data-act="tab" data-v="growth"><div class="stat"><div class="k">예상 기록</div>' + (p ? '<div class="v" style="font-size:22px">' + fmtDur(p[0].t) + ' <small>5K</small></div><div class="s tnum">10K ' + fmtDur(p[1].t) + ' · 하프 ' + fmtDur(p[2].t) + '</div>' : '<div class="v">–</div>') + '</div></button>' +
-    '<button class="tile" data-act="tab" data-v="training"><div class="stat"><div class="k">이번 주 거리</div><div class="v">' + wkKm.toFixed(1) + '<small>/ ' + M.plan.weekKm + ' km</small></div><div class="s">' + M.runs.filter(r => r.day >= thisMon && r.day <= M.today).length + '회 달림</div></div></button></div>';
+    '<button class="tile" data-act="tab" data-v="training"><div class="stat"><div class="k">' + (M.asOf ? '그 주 거리' : '이번 주 거리') + '</div><div class="v">' + wkKm.toFixed(1) + (M.asOf ? '<small>km</small>' : '<small>/ ' + M.plan.weekKm + ' km</small>') + '</div><div class="s">' + M.runs.filter(r => r.day >= thisMon && r.day <= M.today).length + '회 달림</div></div></button></div>';
 }
 function runRow(r) {
   const [, , dd] = civilFromDays(r.day);
   return '<button class="run-row" data-act="run" data-v="' + r.id + '"><div class="date"><b>' + dd + '</b><span>' + WD[weekday(r.day)] + '요일</span></div>' +
     '<div class="main"><div class="l1"><span class="num">' + kmTxt(r.dist, 2) + '<small class="xs muted"> km</small></span>' + labelChip(r.label) + (r.prs && r.prs.length ? '<span class="chip" style="background:var(--accent-soft);color:var(--accent)">기록 경신</span>' : '') + '</div>' +
-    '<div class="l2">' + fmtDur(r.dur) + ' · ' + fmtPace(r.moving / Math.max(1, r.dist) * 1000) + '/km' + (r.hrAvg ? ' · ' + Math.round(r.hrAvg) + ' bpm' : '') + (r.indoor ? ' · 실내' : wxRunTag(r)) + '</div></div>' +
+    '<div class="l2">' + fmtDur(r.dur) + ' · ' + fmtPace(r.moving / Math.max(1, r.dist) * 1000) + '/km' + (r.hrAvg ? ' · ' + Math.round(r.hrAvg) + ' bpm' : '') + (r.indoor ? ' · 실내' : wxRunTag(r)) + '</div>' + (noteFor(r) ? '<div class="l3">' + esc(noteFor(r)) + '</div>' : '') + '</div>' +
     '<div class="te"><b>' + r.teA.toFixed(1) + '</b>훈련 효과</div></button>';
 }
 function insightsCard() {
@@ -4450,6 +4668,7 @@ function vRun(id) {
   const gapPace = gsum > 0 && r.gps ? pace * vsum / gsum : null;
   let h = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div>';
   h += '<div class="page-head"><div><h1 style="font-size:22px">' + fmtDay(r.day) + ' ' + timeKo(r.start, r.off) + '</h1><div class="page-sub">' + (r.indoor ? '실내 달리기' : '실외 달리기') + (r.src ? ' · ' + esc(r.src) : '') + '</div></div>' + labelChip(r.label) + '</div>';
+  h += '<label class="memo"><span class="memo-ic" aria-hidden="true">' + IC.pen + '</span><span class="sr-only">한 줄 메모</span><input id="run-memo" data-run="' + r.id + '" type="text" maxlength="80" enterkeyhint="done" autocomplete="off" placeholder="한 줄 메모 (예: 반포 한강, 다리가 무거웠음)" value="' + esc(noteFor(r)) + '"></label>';
   h += '<section class="card"><div class="grid2">' +
     stat('거리', kmTxt(r.dist, 2), 'km') + stat('운동 시간', fmtDur(r.dur), '') + stat('평균 페이스', fmtPace(pace), '/km') + stat('평균 심박', r.hrAvg ? Math.round(r.hrAvg) : '–', 'bpm') + '</div><div class="divider"></div><div class="kv">' +
     mini('경사 보정 페이스', gapPace ? fmtPace(gapPace) : '–', 'gap') + mini('최고 심박', r.hrMax || '–') + mini('상승 고도', r.indoor ? '–' : r.up + 'm') + mini('케이던스', r.cad ? r.cad + ' spm' : '–') +
@@ -4494,6 +4713,21 @@ function vRun(id) {
   }
   return h;
 }
+// one-line memos, kept on the device by run (and found again by start time if a run is re-imported under another id)
+function noteFor(r) {
+  const n = st.notes || {}; if (n[r.id]) return n[r.id].t;
+  for (const k in n) if (Math.abs((n[k].s || 0) - r.start) <= 90) return n[k].t;
+  return '';
+}
+function saveNote(id, text) {
+  const r = st.data.runs.find(x => x.id === id); if (!r) return false;
+  text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const n = Object.assign({}, st.notes || {}), before = noteFor(r);
+  for (const k in n) if (k !== id && Math.abs((n[k].s || 0) - r.start) <= 90) delete n[k];
+  if (text) n[id] = { t: text, s: r.start }; else delete n[id];
+  st.notes = n; LS.set('notes', n); DB.set('notes', n);
+  return before !== text;
+}
 function stat(k, v, u, info) { return '<div class="stat"><div class="k">' + k + (info ? ' ' + infoBtn(info) : '') + '</div><div class="v">' + v + (u ? '<small>' + u + '</small>' : '') + '</div></div>'; }
 function mini(k, v, info) { return '<div class="stat"><div class="k">' + k + (info ? infoBtn(info) : '') + '</div><div class="v" style="font-size:20px">' + esc(v) + '</div></div>'; }
 function timeKo(utc, off) { const t = fmtClock(utc, off), hh = +t.slice(0, 2), mm = t.slice(3); return (hh < 12 ? '오전 ' : '오후 ') + ((hh % 12) || 12) + ':' + mm; }
@@ -4524,10 +4758,10 @@ function runChart(r) {
 // ---------------- 훈련 ----------------
 function vTraining() {
   const M = st.M, s = M.status;
-  let h = '<div class="page-head"><div><h1>훈련</h1><div class="page-sub">부하 · 상태 · 계획' + (M.ref !== M.today ? ' · ' + fmtDay(M.ref) + ' 기준' : '') + '</div></div></div>';
+  let h = '<div class="page-head"><div><h1>훈련</h1><div class="page-sub">부하 · 상태 · 계획' + (M.ref !== M.today || M.asOf ? ' · ' + fmtDay(M.ref) + ' 기준' : '') + '</div></div></div>';
   h += '<section class="card"><div class="card-head"><h2>훈련 상태 ' + infoBtn('status') + '</h2>' + pill(s.name, s.tone) + '</div><p class="small ink2">' + esc(s.desc) + '</p><div class="divider"></div><div class="grid3">' +
     stat('7일 부하', Math.round(M.load7), '', 'load') + stat('부하 비율', M.acwr !== null ? M.acwr.toFixed(2) : '–', '', 'acwr') + stat('체력 4주 변화', isNum(s.vo2Delta) ? signed(s.vo2Delta, 1) : '–', '', 'vo2') + '</div></section>';
-  h += weekStrip();
+  if (!M.asOf) h += weekStrip();
   // load chart
   h += '<section class="card"><div class="card-head"><h2>훈련 부하 추이 ' + infoBtn('fitness') + '</h2><span class="xs muted">최근 12주</span></div><div class="chart" id="c-load"></div>' +
     '<div class="divider"></div><div class="grid3">' + stat('기초 체력', Math.round(M.ctl), '') + stat('단기 피로', Math.round(M.atl), '') + stat('폼', isNum(M.form) ? signed(M.form, 0) : '–', '') + '</div>' +
@@ -4569,7 +4803,7 @@ function vTraining() {
       tip: i => [['거리', W[i].km.toFixed(1) + ' km', 'var(--z2)'], ['러닝', W[i].n + '회'], ['최장', W[i].long.toFixed(1) + ' km'], ['시간', fmtDurKo(W[i].time)]], yFmt: v => Math.round(v), table: true, xName: '주 시작' });
   });
   h += calendarCard();
-  h += goalCard();
+  if (!M.asOf) h += goalCard();
   return h;
 }
 function calendarCard() {
@@ -4613,7 +4847,7 @@ function goalCard() {
 // ---------------- 실력 ----------------
 function vGrowth() {
   const M = st.M;
-  let h = '<div class="page-head"><div><h1>실력</h1><div class="page-sub">체력 · 예측 · 페이스 · 기록' + (M.ref !== M.today ? ' · ' + fmtDay(M.ref) + ' 기준' : '') + '</div></div></div>';
+  let h = '<div class="page-head"><div><h1>실력</h1><div class="page-sub">체력 · 예측 · 페이스 · 기록' + (M.ref !== M.today || M.asOf ? ' · ' + fmtDay(M.ref) + ' 기준' : '') + '</div></div></div>';
   const lv = M.level;
   h += '<section class="card"><div class="card-head"><h2>러닝 VO2max ' + infoBtn('vo2') + '</h2><div class="seg" role="group" aria-label="기간">' + [[90, '3개월'], [180, '6개월'], [365, '1년']].map(([d, n]) => '<button data-act="grange" data-v="' + d + '" aria-pressed="' + (st.growthRange === d) + '">' + n + '</button>').join('') + '</div></div>' +
     '<div class="row" style="align-items:flex-end;gap:18px;flex-wrap:wrap"><div><div class="hero-v">' + (isNum(lv) ? lv.toFixed(1) : '–') + '</div><div class="xs muted">VDOT · ml/kg/분</div></div>' +
@@ -4776,12 +5010,13 @@ function vSettings() {
     fld('goalTime', '목표 기록 (선택)', '<input id="goalTime" type="text" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="예: 50:00 또는 3:59:00" value="' + esc(S.goalTime || '') + '">', '시간:분:초처럼 쌍점(:)으로 나눠 적어요. 50:00은 50분, 3:59:00은 3시간 59분이에요. 숫자만 적어도 돼요(35900 → 3:59:00). 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true).replace('class="field', 'class="field goal-only') +
     fld('sleepNeed', '목표 수면 시간', num2('sleepNeed', S.sleepNeed, '8', 5, 11, true), '수면 점수의 시간 기준이에요. 7.5처럼 적어도 돼요.', true) +
     (TARGET === 'web' ? '<div class="card-head" style="margin-top:14px"><h2>지도</h2></div>' +
-      fld('mapKind', '지도 종류', seg('mapKind', S.mapKind || 'osm', [['osm', '기본 지도'], ['kakao', '카카오맵']]), '기본 지도는 키 없이 바로 써요(오픈스트리트맵). 카카오맵은 한국 지도가 더 자세하지만 무료 키가 필요해요.') +
+      (KAKAO_KEY ? fld('map', '지도 종류', seg('map', S.map === 'osm' ? 'osm' : 'auto', [['auto', '카카오맵'], ['osm', '기본 지도']]), '카카오맵은 한국 지도가 자세해요. 해외에서 달린 경로는 자동으로 기본 지도(오픈스트리트맵)로 보여 줘요.')
+        : fld('mapKind', '지도 종류', seg('mapKind', S.mapKind || 'osm', [['osm', '기본 지도'], ['kakao', '카카오맵']]), '기본 지도는 키 없이 바로 써요(오픈스트리트맵). 카카오맵은 한국 지도가 더 자세하지만 무료 키가 필요해요.') +
       '<div class="kakao-only">' + fld('kakaoKey', '카카오맵 JavaScript 키', '<input id="kakaoKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="키를 붙여 넣으세요" value="' + esc(S.kakaoKey || '') + '">',
-        '<button type="button" class="link" data-act="kakao-help">키 받는 방법 보기</button>', false) + '</div>' : '') +
+        '<button type="button" class="link" data-act="kakao-help">키 받는 방법 보기</button>', false) + '</div>') : '') +
     (TARGET === 'web' ? '<div class="card-head" style="margin-top:14px"><h2>날씨 ' + infoBtn('wx') + '</h2></div>' +
       fld('weather', '날씨 반영', seg('weather', S.weather === false ? 'off' : 'on', [['on', '켜기'], ['off', '끄기']]), '켜면 러닝마다 더위·바람 영향을 빼고 체력을 계산하고, 훈련 계획에 날씨 예보(기온·비·바람·미세먼지)를 반영해요.') +
-      '<div class="wx-only">' + fld('wxLocMode', '예보 위치', seg('wxLocMode', S.wxLocMode || 'auto', [['auto', '최근 러닝 장소'], ['here', '현재 위치']]), '정확한 위치 대신 약 10km 단위로 반올림한 위치와 날짜만 날씨 서비스(Open-Meteo, 무료)에 보내요. 현재 위치는 저장할 때 한 번 확인해요.') + wxStatusHTML() + '</div>' : '') +
+      '<div class="wx-only">' + fld('wxLocMode', '예보 위치', seg('wxLocMode', S.wxLocMode || 'auto', [['auto', '최근 러닝 장소'], ['here', '현재 위치']]), '날씨 서비스(Open-Meteo, 무료)에는 약 10km 단위로 반올림한 위치와 날짜만 보내요. 동네 이름(시·구·동)을 찾을 때만 약 100m 단위 위치를 ' + (kakaoKey() ? '카카오' : '오픈스트리트맵') + '에 한 번 보내요. 현재 위치는 저장할 때 한 번 확인해요.') + wxStatusHTML() + '</div>' : '') +
     '<div style="display:grid;gap:8px;margin-top:14px"><button class="btn block" type="submit" id="btn-save">저장하고 다시 분석</button><button class="btn ghost block" type="button" data-act="reset-settings">자동값으로 되돌리기</button></div>' +
     (st.savedAt ? '<p class="xs muted" style="margin-top:8px;text-align:center">' + esc(st.savedAt) + '에 저장하고 다시 분석했어요</p>' : '') + '</form>';
   mount(zonePreview);
@@ -4811,7 +5046,10 @@ const HAE_METRICS = [['심박수', 'Heart Rate'], ['안정 시 심박수', 'Rest
   ['달리기 속도', 'Running Speed'], ['달리기 보폭', 'Running Stride Length'], ['수직 진폭', 'Running Vertical Oscillation'], ['지면 접촉 시간', 'Running Ground Contact Time']];
 function haeSetupHTML() {
   const both = (ko, en) => '<b>' + ko + '</b><span class="en">(' + en + ')</span>';
-  return '<p class="small ink2" style="margin-top:8px">달릴 때마다 건강 앱에서 내보낼 필요가 없도록, <b>Health Auto Export</b> 앱이 최근 기록을 iCloud Drive에 알아서 저장하게 해요. 자동화는 이 앱의 유료(프리미엄) 기능이에요.</p>' +
+  return '<p class="small ink2" style="margin-top:8px">달릴 때마다 건강 앱에서 내보낼 필요가 없도록, <b>Health Auto Export</b> 앱이 최근 기록을 iCloud Drive에 알아서 저장하게 해요. 자동 저장(자동화)은 이 앱의 유료(프리미엄) 기능이지만, <b>처음 7일은 프리미엄의 모든 기능을 무료로 체험</b>할 수 있어요.</p>' +
+    '<div class="trial-box"><b>먼저 7일 동안 무료로 써 보세요</b><span>앱 설명에 따르면 7일 동안 프리미엄을 모두 체험한 뒤 무료·베이직·프리미엄 중에서 고르는 방식이에요. SOOM과 잘 맞는지 먼저 확인하고 결정하면 돼요.</span>' +
+    '<span>프리미엄 가격: 월 3,300원 · 연 9,900원(한 달 약 830원) · 평생 44,000원(한 번 결제) — 2026년 10월 App Store 기준이라 바뀔 수 있어요.</span>' +
+    '<span class="xs muted">구독은 아이폰 설정 → 맨 위 내 이름 → 구독에서 언제든 확인하고 해지할 수 있어요.</span></div>' +
     '<p class="xs muted" style="margin-top:6px">이 앱은 아이폰 언어에 따라 한국어나 영어로 보여요. 아래에는 메뉴의 뜻을 한국어로 적고, 괄호 안에 영어 화면의 이름을 함께 적었어요. 한국어 화면에서는 이름이 조금 다를 수 있으니 뜻이 같은 항목을 고르면 돼요.</p>' +
     '<ol class="steps-guide" style="margin-top:12px">' +
     '<li><span>App Store에서 <b>Health Auto Export - JSON+CSV</b>를 설치해요. 처음 열 때 나오는 건강 데이터 접근은 <b>모두 허용</b>해요.</span></li>' +
@@ -4860,15 +5098,20 @@ function vImport() {
     (st.importError ? '<div class="adjust tone-bad" style="margin-top:10px">' + esc(st.importError) + '</div>' : '') + '</section>';
   h += '<section class="card"><div class="card-head"><h2>처음 한 번만 하는 준비</h2></div>' +
     '<details class="fold"' + (hasFull ? '' : ' open') + '><summary>1. 과거 기록 전체 가져오기' + (hasFull ? ' ✓' : '') + '</summary>' + fullExportHTML() + '</details>' +
-    '<details class="fold"' + (hasHae || !hasFull ? '' : ' open') + '><summary>2. 자동 내보내기 설정 (Health Auto Export)' + (hasHae ? ' ✓' : '') + '</summary>' + haeSetupHTML() + '</details>' +
+    '<details class="fold"' + (hasHae || !hasFull ? '' : ' open') + '><summary>2. 자동 내보내기 설정 (Health Auto Export · 7일 무료 체험)' + (hasHae ? ' ✓' : '') + '</summary>' + haeSetupHTML() + '</details>' +
     '<details class="fold"><summary>3. 단축어로 바로 저장 (선택)</summary>' + shortcutHTML() + '</details></section>';
   if (real) {
     const first = st.M.runs[0], lastR = st.M.runs[st.M.runs.length - 1];
     const dshort = u => u ? fmtDayShort(dayOfUtc(u, localOffsetSec())) : '–';
-    const allRuns = D.runs.length, per = (st.settings && st.settings.period) || 'all';
-    h += '<section class="card"><div class="card-head"><h2>지금 분석 중인 데이터</h2></div>' +
-      '<div class="field inline" style="padding-top:0"><label for="period">분석 기간</label><select id="period">' + PERIODS.map(([k, n]) => '<option value="' + k + '"' + (per === k ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>' +
-      '<span class="hint">이 기간의 러닝만 분석해요(최고 기록·체력 추이·주간 거리 등). 가져온 기록은 그대로 남아 있어서 언제든 다시 바꿀 수 있어요.' + (per !== 'all' ? ' 저장된 러닝 ' + allRuns + '회 중 ' + st.M.runs.length + '회를 분석 중이에요.' : '') + '</span></div><div class="kv">' + mini('러닝', st.M.runs.length + '회') + mini('기간', first ? fmtDayDot(first.day) + ' ~ ' + fmtDayDot(lastR.day) : '–') +
+    const allRuns = D.runs.length, S0 = st.settings || {}, per = S0.period || 'all', custom = per === 'custom' || st.periodEdit;
+    const pf = S0.periodFrom || (first ? dayISO(first.day) : ''), pt = S0.periodTo || '';
+    h += '<section class="card" id="period-card"><div class="card-head"><h2>지금 분석 중인 데이터</h2></div>' +
+      '<div class="field inline" style="padding-top:0"><label for="period">분석 기간</label><select id="period">' + PERIODS.map(([k, n]) => '<option value="' + k + '"' + (!custom && per === k ? ' selected' : '') + '>' + n + '</option>').join('') + '<option value="custom"' + (custom ? ' selected' : '') + '>직접 입력</option></select>' +
+      '<span class="hint">이 기간의 러닝만 분석해요(최고 기록·체력 추이·주간 거리 등). 가져온 기록은 그대로 남아 있어서 언제든 다시 바꿀 수 있어요.' + (per !== 'all' ? ' 저장된 러닝 ' + allRuns + '회 중 ' + st.M.runs.length + '회를 분석 중이에요.' : '') + '</span></div>' +
+      '<div class="period-custom"' + (custom ? '' : ' hidden') + '><div class="date-pair"><label>시작일<input id="periodFrom" type="date" value="' + esc(pf) + '" max="' + dayISO(st.M.realToday) + '"></label><span aria-hidden="true">~</span><label>종료일<input id="periodTo" type="date" value="' + esc(pt) + '" max="' + dayISO(st.M.realToday) + '"></label></div>' +
+      '<p class="xs muted">종료일을 비워 두면 오늘까지예요. 종료일이 오늘보다 앞이면, 그날을 오늘처럼 놓고 그때의 체력·회복·기록을 보여 줘요.</p>' +
+      '<button class="btn block" style="margin-top:8px" data-act="period-apply">이 기간으로 분석</button></div>' +
+      '<div class="kv">' + mini('러닝', st.M.runs.length + '회') + mini('기간', first ? fmtDayDot(first.day) + ' ~ ' + fmtDayDot(lastR.day) : '–') +
       mini('기타 운동', (D.others || []).length + '회') + mini('마지막 가져오기', dshort(D.importedAt)) + mini('자동 내보내기', hasHae ? dshort(D.haeAt) : '아직 없음') + '</div>' +
       (st.saved ? '' : '<p class="xs muted" style="margin-top:8px">이 기기에 저장하지 못했어요. 다음에 열 때 다시 가져오거나 백업 파일을 불러와야 해요.</p>') + '</section>';
   }
@@ -4889,7 +5132,7 @@ function vGuide() {
   h += '<section class="card"><div class="card-head"><h2>이 도구는 이렇게 동작해요</h2></div><p class="small ink2">애플워치가 기록한 러닝(심박·GPS 경로·케이던스·파워·러닝 폼)과 수면·HRV·안정 심박을 건강 앱 내보내기 파일과 Health Auto Export가 저장한 파일에서 읽어, 가민·코로스가 제공하는 분석을 공개된 스포츠 과학 공식으로 직접 계산해요. 계산은 모두 이 기기의 브라우저 안에서 이뤄지고, 데이터는 이 기기에만 저장돼요. 날씨는 Open-Meteo에서 받는데, 이때 약 10km 단위로 반올림한 위치와 날짜만 보내요.</p>' +
     '<div class="divider"></div><p class="small ink2"><b>사용 흐름</b></p><ol class="steps-guide" style="margin-top:8px">' +
     '<li><span>평소처럼 애플워치·아이폰 <b>운동 앱</b>으로 달려요. 이 도구는 달리는 동안 켜 둘 필요가 없어요.</span></li>' +
-    '<li><span>달리기를 마치면 <b>Health Auto Export</b>가 최근 기록을 iCloud Drive에 자동으로 저장해요 (아이폰 잠금이 풀려 있을 때). 단축어를 설정했다면 운동이 끝날 때 뜨는 알림을 눌러 바로 저장해요.</span></li>' +
+    '<li><span>달리기를 마치면 <b>Health Auto Export</b>가 최근 기록을 iCloud Drive에 자동으로 저장해요 (아이폰 잠금이 풀려 있을 때). 단축어를 설정했다면 운동이 끝날 때 뜨는 알림을 눌러 바로 저장해요. 자동 저장은 이 앱의 유료 기능인데, 처음 7일은 무료로 체험할 수 있어요.</span></li>' +
     '<li><span>리포트 화면의 <b>파일 선택</b> → iCloud Drive → <b>AutoExport</b> → <b>SOOM</b> 폴더에서 가장 최근 파일 두 개(\'SOOM 운동…\', \'SOOM 건강…\')를 함께 골라요.</span></li>' +
     '<li><span><b>리포트</b>에서 방금 달린 러닝의 효과와 코치 메모, 남은 회복 시간, 다음 추천 훈련을 확인해요. 구간·심박·러닝 폼은 <b>자세한 분석 보기</b>에 있어요.</span></li></ol>' +
     '<p class="xs muted" style="margin-top:10px">처음 한 번은 건강 앱의 <b>모든 건강 데이터 내보내기</b>로 과거 기록 전체를 가져와요. 설정 방법은 설정 → 데이터 가져오기에 있어요.</p>' +
@@ -4967,6 +5210,8 @@ function renderBanner() {
   if (TARGET === 'artifact') { b.innerHTML = '<div class="banner"><span><b>이전 버전</b>이에요. 지도와 러닝화 같은 최신 기능은 홈 화면의 SOOM 앱에서 써요.</span><a class="btn small" href="https://trade-on-master.github.io/soom/" target="_blank" rel="noopener">SOOM 열기</a></div>'; return; }
   if (st.data && isDemo() && !['import', 'guide'].includes(st.view) && !st.importing)
     b.innerHTML = '<div class="banner"><span><b>예시 데이터</b>를 보여주고 있어요. 내 애플워치 기록을 가져오면 바로 내 분석으로 바뀌어요.</span><button class="btn small" data-act="go" data-v="import">가져오기</button></div>';
+  else if (st.M && st.M.asOf && !['import', 'settings', 'guide'].includes(st.view))
+    b.innerHTML = '<div class="banner"><span><b>지난 기간</b>(' + esc(periodLabel(st.M.S, st.M.realToday)) + ')을 보고 있어요. ' + esc(fmtDay(st.M.asOf)) + ' 기준이에요.</span><button class="btn small" data-act="period-edit">기간 바꾸기</button></div>';
   else b.innerHTML = '';
 }
 function go(v) {
@@ -5015,6 +5260,8 @@ document.addEventListener('click', e => {
     }
     case 'kakao-help': openSheet(kakaoHelpSheet()); break;
     case 'wx-refresh': wxSync(true); render(true); break;
+    case 'period-edit': closeSheet(); go('import'); setTimeout(() => { const c = $('#period-card'); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60); break;
+    case 'period-apply': applyPeriod(); break;
     case 'wx-swap': wxSwap(+a.dataset.a, +a.dataset.b); break;
     case 'wx-unswap': wxUnswap(+a.dataset.a); break;
     case 'share-app': shareApp(); break;
@@ -5037,7 +5284,7 @@ document.addEventListener('click', e => {
     case 'delete-yes': doDelete(); break;
   }
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMapFull(); closeSheet(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMapFull(); closeSheet(); } if (e.key === 'Enter' && e.target.id === 'run-memo') { e.preventDefault(); e.target.blur(); } });
 document.addEventListener('submit', e => { if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } else if (e.target.id === 'shoe-form') { e.preventDefault(); saveShoe(); } });
 
 function saveSettings() {
@@ -5053,6 +5300,7 @@ function saveSettings() {
     period: (st.settings && st.settings.period) || 'all',
     mapKind: f.querySelector('#mapKind') ? (segVal('mapKind') || 'osm') : ((st.settings && st.settings.mapKind) || 'osm'),
     kakaoKey: f.querySelector('#kakaoKey') ? f.querySelector('#kakaoKey').value.trim() : ((st.settings && st.settings.kakaoKey) || ''),
+    map: f.querySelector('#map') ? (segVal('map') || 'auto') : (prev.map || 'auto'),
     weather: f.querySelector('#weather') ? segVal('weather') !== 'off' : prev.weather !== false,
     wxLocMode: f.querySelector('#wxLocMode') ? (segVal('wxLocMode') || 'auto') : (prev.wxLocMode || 'auto'),
   });
@@ -5076,6 +5324,20 @@ function saveSettings() {
   } else if (TARGET === 'web' && S.weather && (prev.weather === false || (prev.wxLocMode || 'auto') !== S.wxLocMode)) wxSync(true);
 }
 function saveSettingsOnly() { LS.set('settings', st.settings); DB.set('settings', st.settings); }
+// analysis period typed by the person: start date (and an end date, or today)
+function applyPeriod() {
+  const fv = ($('#periodFrom') || {}).value || '', tv = ($('#periodTo') || {}).value || '', today = st.M.realToday;
+  if (!fv) return toast('시작일을 골라 주세요');
+  const a = isoToDay(fv), b = tv ? isoToDay(tv) : today;
+  if (a > today) return toast('시작일이 오늘보다 뒤예요');
+  if (b < a) return toast('종료일이 시작일보다 앞이에요');
+  const n = st.data.runs.filter(r => r.day >= a && r.day <= b).length;
+  if (!n) return toast('이 기간에는 러닝 기록이 없어요. 날짜를 다시 골라 주세요');
+  const past = b < today;
+  st.settings = Object.assign({}, st.settings, { period: 'custom', periodFrom: fv, periodTo: past ? tv : '' }); saveSettingsOnly();
+  st.periodEdit = false; recompute(); render(true);
+  toast(fmtDayDot(a) + ' ~ ' + (past ? fmtDayDot(b) : '오늘') + ' 기간으로 분석해요 (러닝 ' + n + '회)');
+}
 // weather swap: trade the training planned on two days (kept until those days pass)
 function wxSwap(a, b) {
   const t = st.M.today, sw = (st.settings.swaps || []).filter(p => p[0] >= t && p[1] >= t && !p.includes(a) && !p.includes(b));
@@ -5092,12 +5354,19 @@ document.addEventListener('change', e => {
   if (e.target.id === 'goalDist') { const f = $('#settings-form'); if (f) f.dataset.goal = +e.target.value > 0 ? 1 : 0; }
   if (e.target.id === 'goalDate') { const b = document.querySelector('[data-act="cleardate"]'); if (b) b.hidden = !e.target.value; }
   if (e.target.id === 'run-shoe') setRunShoe(e.target.dataset.run, e.target.value);
+  if (e.target.id === 'run-memo') { clearTimeout(st.memoT); saveNote(e.target.dataset.run, e.target.value); toast(e.target.value.trim() ? '메모를 저장했어요' : '메모를 지웠어요'); } // 'change' fires only when the text changed
   if (e.target.id === 'period') {
+    const box = document.querySelector('.period-custom');
+    if (e.target.value === 'custom') { st.periodEdit = true; if (box) box.hidden = false; return; } // dates first, then '이 기간으로 분석'
+    st.periodEdit = false;
     st.settings = Object.assign({}, st.settings, { period: e.target.value }); LS.set('settings', st.settings); DB.set('settings', st.settings);
     recompute(); render(true); toast('분석 기간을 ' + (PERIODS.find(x => x[0] === e.target.value) || [, '전체'])[1] + '(으)로 바꿨어요');
   }
 });
-document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview(); });
+document.addEventListener('input', e => {
+  if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview();
+  if (e.target.id === 'run-memo') { clearTimeout(st.memoT); const el = e.target; st.memoT = setTimeout(() => saveNote(el.dataset.run, el.value), 800); } // keep typing safe even if the app is closed
+});
 // tidy the goal time when leaving the box: '35900' or '3.59.00' becomes '3:59:00'
 document.addEventListener('focusout', e => { if (e.target.id === 'goalTime') { const t = parseGoalTime(e.target.value); if (t) e.target.value = fmtDur(t); } });
 
@@ -5156,6 +5425,7 @@ $('#file-backup').addEventListener('change', async e => {
     st.data = data;
     if (obj.settings) { st.settings = obj.settings; LS.set('settings', st.settings); DB.set('settings', st.settings); }
     if (obj.gear && Array.isArray(obj.gear.shoes)) { st.gear = Object.assign({ shoes: [], pick: {} }, obj.gear); saveGear(); }
+    if (obj.notes && typeof obj.notes === 'object') { st.notes = Object.assign({}, obj.notes, st.notes); LS.set('notes', st.notes); DB.set('notes', st.notes); }
     if (obj.wx && typeof obj.wx === 'object') { st.wx.runs = Object.assign({}, obj.wx, st.wx.runs); DB.set('wx', { v: WX_V, runs: st.wx.runs }); }
     st.saved = await DB.set('data', cleanData(data));
     recompute(); st.importError = null; st.back = []; st.view = 'today'; render();
@@ -5180,7 +5450,7 @@ async function webSave({ filename, data }) {
 }
 async function doBackup() {
   if (!st.dl) { toast('이 화면에서는 파일 저장을 지원하지 않아요'); return; }
-  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), wx: st.wx.runs, data: cleanData(st.data) });
+  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), notes: st.notes || {}, wx: st.wx.runs, data: cleanData(st.data) });
   try {
     await st.dl.save({ filename: 'soom-backup-' + dayISO(st.M.today) + '.json', data: new Blob([payload], { type: 'application/json' }) });
     toast('백업 파일을 저장했어요');
@@ -5196,7 +5466,8 @@ async function shareApp() {
 }
 async function doDelete() {
   await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('wxfc'); st.newIds = []; st.gear = { shoes: [], pick: {} };
-  st.wx.runs = {}; st.wx.fc = null; st.wx.err = null;
+  st.wx.runs = {}; st.wx.fc = null; st.wx.err = null; st.wx.place = null; LS.del('wxplace'); LS.del('places');
+  st.notes = {}; LS.del('notes'); await DB.del('notes');
   st.settings = {}; st.saved = false; st.confirmDelete = false;
   st.data = await makeDemoData(); recompute();
   st.back = []; st.view = 'today'; st.scroll = {}; render(); toast('모든 데이터를 지웠어요');
@@ -5214,6 +5485,8 @@ async function boot() {
   const wxs = await DB.get('wx');
   if (wxs && wxs.v === WX_V && wxs.runs) st.wx.runs = wxs.runs;
   const fcs = LS.get('wxfc'); if (fcs && fcs.v === WX_V) st.wx.fc = fcs;
+  st.wx.place = LS.get('wxplace') || null;
+  st.notes = LS.get('notes') || (await DB.get('notes')) || {};
   const saved = await DB.get('data');
   if (saved && Array.isArray(saved.runs) && saved.runs.length) { st.data = saved; st.saved = true; }
   else st.data = await makeDemoData();
