@@ -205,6 +205,12 @@ details.fold + details.fold { margin-top: 8px; }
 .setlist div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 10px; font-size: 13px; border-bottom: 1px solid var(--line); }
 .setlist div:last-child { border-bottom: 0; }
 .setlist span { color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+.setlist span small { display: block; font-size: 11px; color: var(--muted); }
+.steps-guide .en { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.metric-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.metric-list > .xs { grid-column: 1 / -1; }
+.metric-list .mi { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font-size: 13px; color: var(--ink); line-height: 1.3; }
+.metric-list .mi small { display: block; font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
 .setlist b { color: var(--ink); font-weight: 700; text-align: right; flex: none; }
 
 /* week strip */
@@ -2635,15 +2641,21 @@ function racePlan(D, target) {
   return segs.map(([m, p, t]) => { cum += t * k; return { m, pace: p * k, cum }; });
 }
 
-// '3:59:00', '3.59.00', '50:00', '50.00' or just '50' (minutes)
+// '3:59:00' or '50:00' (also with dots), or digits alone: '50' = 50 min, '5000' = 50:00, '35900' = 3:59:00
 function parseGoalTime(s) {
   if (!s) return null;
-  const p = String(s).trim().replace(/[.,\s]+/g, ':').replace(/^:+|:+$/g, '').split(':').map(x => (/^\d+$/.test(x) ? parseInt(x, 10) : NaN));
+  let str = String(s).trim().replace(/[.,\s]+/g, ':').replace(/^:+|:+$/g, '');
+  if (/^\d+$/.test(str)) {
+    if (str.length <= 2) str = str + ':00';
+    else if (str.length <= 4) str = str.slice(0, -2) + ':' + str.slice(-2);
+    else if (str.length <= 6) str = str.slice(0, -4) + ':' + str.slice(-4, -2) + ':' + str.slice(-2);
+    else return null;
+  }
+  const p = str.split(':').map(x => (/^\d+$/.test(x) ? parseInt(x, 10) : NaN));
   if (!p.length || p.some(x => !isNum(x))) return null;
   let t = null;
   if (p.length === 3 && p[1] < 60 && p[2] < 60) t = p[0] * 3600 + p[1] * 60 + p[2];
   else if (p.length === 2 && p[1] < 60) t = p[0] * 60 + p[1];
-  else if (p.length === 1) t = p[0] * 60;
   return t && t >= 600 && t <= 8 * 3600 ? t : null;
 }
 
@@ -2879,7 +2891,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "b3b8ca01e7";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "74574179bd";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -3815,7 +3827,7 @@ function vSettings() {
     fld('longRunDay', '장거리 요일', '<select id="longRunDay">' + [6, 0, 1, 2, 3, 4, 5].map(v => '<option value="' + v + '"' + (+S.longRunDay === v ? ' selected' : '') + '>' + WD[v] + '요일</option>').join('') + '</select>', '', true) +
     fld('goalDist', '목표 대회', '<select id="goalDist">' + [[0, '없음 (꾸준한 향상)'], [5000, '5K'], [10000, '10K'], [21097.5, '하프 마라톤'], [42195, '풀 마라톤']].map(([v, n]) => '<option value="' + v + '"' + (+S.goalDist === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>', '', true) +
     fld('goalDate', '대회 날짜', '<input id="goalDate" type="date" value="' + esc(S.goalDate || '') + '">', '', true) +
-    fld('goalTime', '목표 기록', '<input id="goalTime" type="text" inputmode="decimal" autocomplete="off" placeholder="예: 50.00 또는 3.59.00" value="' + esc(S.goalTime || '') + '">', '시간·분·초를 점(.)이나 쌍점(:)으로 나눠 적어요. 50.00은 50분, 3.59.00은 3시간 59분이에요. 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true) +
+    fld('goalTime', '목표 기록', '<input id="goalTime" type="text" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="예: 50:00 또는 3:59:00" value="' + esc(S.goalTime || '') + '">', '시간:분:초처럼 쌍점(:)으로 나눠 적어요. 50:00은 50분, 3:59:00은 3시간 59분이에요. 숫자만 적어도 돼요(35900 → 3:59:00). 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true) +
     fld('sleepNeed', '목표 수면 시간', num2('sleepNeed', S.sleepNeed, '8', 5, 11, true), '수면 점수의 시간 기준이에요. 7.5처럼 적어도 돼요.', true) +
     '<div style="display:grid;gap:8px;margin-top:14px"><button class="btn block" type="submit" id="btn-save">저장하고 다시 분석</button><button class="btn ghost block" type="button" data-act="reset-settings">자동값으로 되돌리기</button></div>' +
     (st.savedAt ? '<p class="xs muted" style="margin-top:8px;text-align:center">' + esc(st.savedAt) + '에 저장하고 다시 분석했어요</p>' : '') + '</form>';
@@ -3827,20 +3839,29 @@ function vSettings() {
 }
 
 // ---------------- 데이터 가져오기 ----------------
-function setRows(rows) { return '<div class="setlist">' + rows.map(r => '<div><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('') + '</div>'; }
-const HAE_METRICS = 'Heart Rate · Resting Heart Rate · Heart Rate Variability · VO2 Max · Respiratory Rate · Apple Sleeping Wrist Temperature · Sleep Analysis · Weight & Body Mass · Cardio Recovery · Running Power · Running Speed · Running Stride Length · Running Vertical Oscillation · Running Ground Contact Time';
+// one setting per row: what it means in Korean, the English name in small type (the app can show either), and what to choose
+function setRows(rows) { return '<div class="setlist">' + rows.map(r => '<div><span>' + r[0] + (r[2] ? '<small>' + r[2] + '</small>' : '') + '</span><b>' + r[1] + '</b></div>').join('') + '</div>'; }
+const HAE_METRICS = [['심박수', 'Heart Rate'], ['안정 시 심박수', 'Resting Heart Rate'], ['심박 변이(HRV)', 'Heart Rate Variability'], ['VO2 Max', 'VO2 Max'], ['호흡수', 'Respiratory Rate'],
+  ['수면 중 손목 온도', 'Apple Sleeping Wrist Temperature'], ['수면 분석', 'Sleep Analysis'], ['체중', 'Weight · Body Mass'], ['심박 회복', 'Cardio Recovery'], ['달리기 파워', 'Running Power'],
+  ['달리기 속도', 'Running Speed'], ['달리기 보폭', 'Running Stride Length'], ['수직 진폭', 'Running Vertical Oscillation'], ['지면 접촉 시간', 'Running Ground Contact Time']];
 function haeSetupHTML() {
+  const both = (ko, en) => '<b>' + ko + '</b><span class="en">(' + en + ')</span>';
   return '<p class="small ink2" style="margin-top:8px">달릴 때마다 건강 앱에서 내보낼 필요가 없도록, <b>Health Auto Export</b> 앱이 최근 기록을 iCloud Drive에 알아서 저장하게 해요. 자동화는 이 앱의 유료(프리미엄) 기능이에요.</p>' +
+    '<p class="xs muted" style="margin-top:6px">이 앱은 아이폰 언어에 따라 한국어나 영어로 보여요. 아래에는 메뉴의 뜻을 한국어로 적고, 괄호 안에 영어 화면의 이름을 함께 적었어요. 한국어 화면에서는 이름이 조금 다를 수 있으니 뜻이 같은 항목을 고르면 돼요.</p>' +
     '<ol class="steps-guide" style="margin-top:12px">' +
     '<li><span>App Store에서 <b>Health Auto Export - JSON+CSV</b>를 설치해요. 처음 열 때 나오는 건강 데이터 접근은 <b>모두 허용</b>해요.</span></li>' +
-    '<li><span>앱 메뉴에서 <b>Automations</b> → <b>New Automation</b> → <b>iCloud Drive</b>를 고르고, 자동화 이름은 <b>SOOM</b>으로 적어요. 아래처럼 맞춘 뒤 오른쪽 위 <b>Update</b>를 눌러 저장해요. 맨 위 <b>Enabled</b>가 꺼져 있으면 자동으로 돌지 않아요.' +
-      setRows([['Enabled', '켜기'], ['Export File Name', 'SOOM 운동'], ['Data Type', 'Workouts'], ['Include Route Data', '켜기'], ['Include Workout Metrics', '켜기'], ['Time Grouping', 'Seconds'], ['Export Format', 'JSON'], ['Export Version', 'v2'], ['Date Range', 'Week'], ['Sync Frequency', 'Every 1 Hours']]) + '</span></li>' +
-    '<li><span>자동화를 하나 더 만들어요. 첫 번째 자동화 화면 아래의 <b>Duplicate Automation</b>으로 복사하면 쉬워요. 자동화 이름은 똑같이 <b>SOOM</b>으로 두면 두 파일이 SOOM 폴더 하나에 모여요. 이번에도 <b>Update</b>로 저장해요.' +
-      setRows([['Enabled', '켜기'], ['Export File Name', 'SOOM 건강'], ['Data Type', 'Health Metrics'], ['Select Health Metrics', '아래 목록'], ['Summarize Data', '끄기'], ['Export Format', 'JSON'], ['Export Version', 'v2'], ['Date Range', 'Week'], ['Sync Frequency', 'Every 1 Hours']]) +
-      '<span class="xs muted" style="display:block;margin-top:6px">고를 항목: ' + esc(HAE_METRICS) + '</span></span></li>' +
-    '<li><span>자동화마다 아래쪽 <b>Manual Upload</b>를 한 번 눌러 저장해 봐요. <b>파일</b> 앱 → iCloud Drive → <b>AutoExport</b> → <b>SOOM</b> 폴더에 \'SOOM 운동…\', \'SOOM 건강…\' 파일이 보이면 성공이에요.</span></li>' +
+    '<li><span>앱 메뉴에서 ' + both('자동화', 'Automations') + ' → ' + both('새 자동화', 'New Automation') + ' → <b>iCloud Drive</b>를 고르고, 자동화 이름은 <b>SOOM</b>으로 적어요. 아래처럼 맞춘 뒤 오른쪽 위 ' + both('업데이트', 'Update') + '를 눌러 저장해요. 맨 위 자동화 켜기가 꺼져 있으면 자동으로 돌지 않아요.' +
+      setRows([['자동화 켜기', '켜기', 'Enabled'], ['내보내기 파일 이름', 'SOOM 운동', 'Export File Name'], ['데이터 종류', '운동', 'Data Type · Workouts'], ['경로 데이터 포함', '켜기', 'Include Route Data'],
+        ['운동 지표 포함', '켜기', 'Include Workout Metrics'], ['시간 단위', '초', 'Time Grouping · Seconds'], ['내보내기 형식', 'JSON', 'Export Format'], ['내보내기 버전', 'v2', 'Export Version'],
+        ['기간', '주', 'Date Range · Week'], ['동기화 주기', '1시간마다', 'Sync Frequency · Every 1 Hours']]) + '</span></li>' +
+    '<li><span>자동화를 하나 더 만들어요. 첫 번째 자동화 화면 아래의 ' + both('자동화 복제', 'Duplicate Automation') + '로 복사하면 쉬워요. 자동화 이름은 똑같이 <b>SOOM</b>으로 두면 두 파일이 SOOM 폴더 하나에 모여요. 이번에도 업데이트로 저장해요.' +
+      setRows([['자동화 켜기', '켜기', 'Enabled'], ['내보내기 파일 이름', 'SOOM 건강', 'Export File Name'], ['데이터 종류', '건강 지표', 'Data Type · Health Metrics'], ['건강 지표 고르기', '아래 목록', 'Select Health Metrics'],
+        ['데이터 요약', '끄기', 'Summarize Data'], ['내보내기 형식', 'JSON', 'Export Format'], ['내보내기 버전', 'v2', 'Export Version'], ['기간', '주', 'Date Range · Week'], ['동기화 주기', '1시간마다', 'Sync Frequency · Every 1 Hours']]) +
+      '<span class="metric-list"><span class="xs muted">고를 건강 지표 (' + HAE_METRICS.length + '가지)</span>' + HAE_METRICS.map(([ko, en]) => '<span class="mi">' + esc(ko) + '<small>' + esc(en) + '</small></span>').join('') +
+      '<span class="xs muted">체중은 앱에서 비슷한 이름의 항목 두 개로 나뉘어 있을 수 있어요. 그럴 땐 둘 다 골라요.</span></span></span></li>' +
+    '<li><span>자동화마다 아래쪽 ' + both('수동 업로드', 'Manual Upload') + '를 한 번 눌러 저장해 봐요. <b>파일</b> 앱 → iCloud Drive → <b>AutoExport</b> → <b>SOOM</b> 폴더에 \'SOOM 운동…\', \'SOOM 건강…\' 파일이 보이면 성공이에요.</span></li>' +
     '<li><span>위의 <b>파일 선택</b>을 눌러 SOOM 폴더의 최신 파일 두 개를 함께 골라요.</span></li></ol>' +
-    '<p class="xs muted" style="margin-top:10px">아이폰 잠금이 풀려 있을 때만 저장돼요. 잠긴 아이폰에서는 애플이 건강 데이터를 막기 때문이에요. 설정 → 일반 → <b>백그라운드 앱 새로 고침</b>을 켜 두세요. 저전력 모드에서는 늦어질 수 있어요. 앱을 한국어로 쓰고 있다면 위 영어 이름과 같은 뜻의 메뉴를 고르면 돼요.</p>';
+    '<p class="xs muted" style="margin-top:10px">아이폰 잠금이 풀려 있을 때만 저장돼요. 잠긴 아이폰에서는 애플이 건강 데이터를 막기 때문이에요. 설정 → 일반 → <b>백그라운드 앱 새로 고침</b>을 켜 두세요. 저전력 모드에서는 늦어질 수 있어요.</p>';
 }
 function shortcutHTML() {
   return '<p class="small ink2" style="margin-top:8px">자동 저장은 정해진 간격으로 돌아가요. <b>단축어</b> 자동화를 더하면 달리기를 끝낸 직후와 매일 아침 정한 시각에 바로 저장돼요.</p>' +
@@ -4045,7 +4066,7 @@ function saveSettings() {
   const P = st.M.P, mx = S.maxHR || P.auto.max, rs = S.restHR || P.auto.rest, lt = S.lthr || P.auto.lthr;
   if (mx <= rs + 40) return toast('최대 심박은 안정 심박보다 40 이상 높아야 해요');
   if (lt >= mx || lt <= rs) return toast('젖산역치 심박은 안정 심박과 최대 심박 사이여야 해요');
-  if (S.goalTime && !parseGoalTime(S.goalTime)) return toast('목표 기록은 50.00(50분)이나 3.59.00(3시간 59분)처럼 적어 주세요');
+  if (S.goalTime && !parseGoalTime(S.goalTime)) return toast('목표 기록은 50:00(50분)이나 3:59:00(3시간 59분)처럼 적어 주세요');
   if (S.goalTime) S.goalTime = fmtDur(parseGoalTime(S.goalTime));
   if (S.goalDist && !S.goalDate) return toast('대회 날짜도 입력해 주세요');
   st.settings = S; LS.set('settings', S); DB.set('settings', S);
@@ -4054,6 +4075,8 @@ function saveSettings() {
   render(true); toast('저장했어요. 새 설정으로 다시 분석했어요');
 }
 document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview(); });
+// tidy the goal time when leaving the box: '35900' or '3.59.00' becomes '3:59:00'
+document.addEventListener('focusout', e => { if (e.target.id === 'goalTime') { const t = parseGoalTime(e.target.value); if (t) e.target.value = fmtDur(t); } });
 
 async function doImport(files) {
   files = Array.from(files || []); if (!files.length) return;
