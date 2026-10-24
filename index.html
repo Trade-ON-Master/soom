@@ -331,6 +331,9 @@ a.btn { text-decoration: none; }
 .field input, .field select { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 10px; width: 100%; font-size: 16px; }
 .field.inline { grid-template-columns: minmax(0, 1fr) 140px; align-items: center; }
 .field.inline .hint { grid-column: 1 / -1; }
+#settings-form[data-goal="0"] .goal-only { display: none; }
+.date-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.date-row .link { font-size: 13px; white-space: nowrap; }
 .segctl { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
 .segctl button { border: 0; background: transparent; border-radius: 8px; padding: 7px 4px; font-size: 13px; }
 .segctl button { color: var(--ink-2); }
@@ -2891,7 +2894,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "74574179bd";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "e585f7d208";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -3225,7 +3228,7 @@ const INFO = {
   abilities: { t: '거리별 실력 균형', b: '짧은 거리부터 긴 거리까지 기록이 고르게 좋은지 보여줘요. 낮은 막대는 그 거리대가 상대적 약점이거나, 최근 그 거리를 힘껏 달린 적이 없다는 뜻이에요.', how: '최근 12주 거리대별 최고 기록을 VDOT으로 바꿔 현재 러닝 VO2max와 비교해요(100% = 같은 수준).', ref: '코로스 \'러닝 피트니스 분석\'' },
   efficiency: { t: '유산소 효율', b: '같은 심박으로 얼마나 빨리 달리는지예요. 선이 위로 갈수록(빨라질수록) 유산소 체력이 좋아지고 있다는 뜻이에요.', how: '이지런마다 \'경사 보정 속도 ÷ 심박\'을 구해, 기준 심박에서의 예상 페이스로 바꿔요.', ref: '트레이닝피크스 \'효율 지수(EF)\'' },
   weekly: { t: '주간 거리', b: '주(월~일)마다 달린 거리예요. 한 주에 10% 넘게 갑자기 늘리면 부상 위험이 커져요.', how: '진한 막대는 이번 주(진행 중)예요.', ref: '' },
-  plan: { t: '훈련 계획', b: '목표 레이스(없으면 꾸준한 체력 향상)에 맞춰 이번 주 일정을 만들어요. 오늘 훈련은 컨디션 점수와 회복 시간에 따라 자동으로 조정돼요.', how: '최근 4주 평균 주간 거리에서 10% 이내로 늘리고, 4주에 한 번은 회복 주간을 둬요. 부하 집중도에서 부족한 영역을 핵심 훈련에 반영해요. 설정에서 주당 러닝 횟수, 장거리 요일, 목표 레이스를 바꿀 수 있어요.', ref: '가민 \'추천 운동\'·가민 코치' },
+  plan: { t: '훈련 계획', b: '목표 거리와 대회 날짜에 맞춰 이번 주 일정을 만들어요. 날짜가 없으면 목표 거리에 맞춘 꾸준한 향상 계획을, 목표 거리도 없으면 전반적인 체력 향상 계획을 짜요. 오늘 훈련은 컨디션 점수와 회복 시간에 따라 자동으로 조정돼요.', how: '최근 4주 평균 주간 거리에서 10% 이내로 늘리고, 4주에 한 번은 회복 주간을 둬요. 부하 집중도에서 부족한 영역을 핵심 훈련에 반영해요. 설정에서 주당 러닝 횟수, 장거리 요일, 목표 레이스를 바꿀 수 있어요.', ref: '가민 \'추천 운동\'·가민 코치' },
   loadRange: { t: '주간 권장 부하', b: '체력을 늘리면서도 무리하지 않는 이번 주(최근 7일) 부하 범위예요. 초록 띠 안에 있으면 좋아요.', how: '기초 체력(42일 평균 하루 부하) × 7일의 100~130%.', ref: '코로스 \'권장 7일 부하\'' },
   calendar: { t: '훈련 캘린더', b: '최근 12주 동안 달린 날을 보여줘요. 색이 진할수록 그날 부하가 컸어요.', how: '', ref: '' },
   power: { t: '러닝 파워', b: '달리는 데 쓰는 힘(와트)이에요. 애플워치 시리즈 6 이후에서 기록돼요.', how: '', ref: '' },
@@ -3649,18 +3652,22 @@ function calendarCard() {
   return '<section class="card"><div class="card-head"><h2>훈련 캘린더 ' + infoBtn('calendar') + '</h2><span class="xs muted">12주 · ' + days + '일 달림</span></div>' + g + '</section>';
 }
 function goalCard() {
-  const M = st.M, plan = M.plan, S = M.S;
+  const M = st.M, plan = M.plan, S = M.S, D = plan.goalDist;
   let body;
-  if (plan.raceDay) {
-    const gt = parseGoalTime(S.goalTime), pred = isNum(M.level) ? raceTimeFor(M.level, plan.goalDist) : null;
-    body = '<div class="grid2">' + stat(plan.raceName + ' 대회', 'D-' + (plan.raceDay - M.today), '') + stat('현재 예상 기록', pred ? fmtDur(pred) : '–', '') + '</div>' +
-      (gt ? '<p class="small ink2" style="margin-top:8px">목표 ' + fmtDur(gt) + ' (' + fmtPace(gt / plan.goalDist * 1000) + '/km) · ' + (pred ? (pred <= gt ? '지금 체력으로 충분히 가능한 목표예요.' : '목표까지 약 ' + fmtDur(pred - gt) + ' 단축이 필요해요.') : '') + '</p>' : '') +
-      '<p class="small ink2" style="margin-top:6px"><b>' + esc(plan.phaseName) + '</b> — ' + esc(plan.phaseDesc) + '</p>';
-    const tgt = gt || pred, rp = tgt ? racePlan(plan.goalDist, tgt) : null;
+  if (D > 0) {
+    const gt = parseGoalTime(S.goalTime), pred = isNum(M.level) ? raceTimeFor(M.level, D) : null;
+    const gd = S.goalDate ? isoToDay(S.goalDate) : NaN, past = isNum(gd) && gd < M.today;
+    body = '<div class="grid2">' + (plan.raceDay ? stat(plan.raceName + ' 대회', 'D-' + (plan.raceDay - M.today), '') : stat('목표 거리', plan.raceName, '')) +
+      stat('현재 예상 기록', pred ? fmtDur(pred) : '–', '') + '</div>';
+    if (gt) body += '<p class="small ink2" style="margin-top:8px">목표 ' + fmtDur(gt) + ' (' + fmtPace(gt / D * 1000) + '/km) · ' + (pred ? (pred <= gt ? '지금 체력으로 충분히 가능한 목표예요.' : '목표까지 약 ' + fmtDur(pred - gt) + ' 단축이 필요해요.') : '') + '</p>';
+    body += '<p class="small ink2" style="margin-top:6px"><b>' + esc(plan.phaseName) + '</b> — ' + esc(plan.phaseDesc) + '</p>';
+    if (!plan.raceDay) body += '<p class="small muted" style="margin-top:6px">' + (past ? '입력한 대회 날짜(' + esc(fmtDay(gd)) + ')가 지났어요. ' : '대회 날짜가 없어서 ') + esc(plan.raceName) +
+      '에 맞춘 꾸준한 향상 계획으로 짰어요. 대회를 접수하면 설정에서 날짜를 넣어 주세요. 그날에 맞춰 기초기 → 강화기 → 피크기 → 테이퍼로 바뀌어요.</p>';
+    const tgt = gt || pred, rp = tgt ? racePlan(D, tgt) : null;
     if (rp) body += '<details class="fold"><summary>레이스 페이스 전략 (' + (gt ? '목표' : '예상') + ' ' + fmtDur(tgt) + ')</summary><p class="xs muted" style="margin-top:6px">초반 3분의 1은 1% 여유 있게, 마지막 3분의 1은 1% 빠르게 — 같은 노력으로 끝까지 버티는 방법이에요.</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>지점</th><th>구간 페이스</th><th>통과 시간</th></tr></thead><tbody>' +
       rp.map(x => '<tr><td>' + (x.m >= 1000 ? round(x.m / 1000, 1) + 'km' : x.m + 'm') + '</td><td>' + fmtPace(x.pace) + '/km</td><td>' + fmtDur(x.cum) + '</td></tr>').join('') + '</tbody></table></div>' +
-      (plan.goalDist >= 21097.5 ? '<p class="xs muted" style="margin-top:6px">하프 이상은 40~45분마다 에너지 젤과 물을 챙기고, 레이스 3일 전부터 탄수화물을 넉넉히 드세요.</p>' : '') + '</details>';
-  } else body = '<p class="small ink2"><b>' + esc(plan.phaseName) + '</b> — ' + esc(plan.phaseDesc) + '</p><p class="small muted" style="margin-top:6px">목표 대회를 등록하면 대회 날짜에 맞춰 기초기 → 강화기 → 피크기 → 테이퍼로 계획을 짜 드려요.</p>';
+      (D >= 21097.5 ? '<p class="xs muted" style="margin-top:6px">하프 이상은 40~45분마다 에너지 젤과 물을 챙기고, 레이스 3일 전부터 탄수화물을 넉넉히 드세요.</p>' : '') + '</details>';
+  } else body = '<p class="small ink2"><b>' + esc(plan.phaseName) + '</b> — ' + esc(plan.phaseDesc) + '</p><p class="small muted" style="margin-top:6px">설정에서 목표 거리를 정하면 그 거리에 맞춘 훈련으로 짜 드려요. 접수한 대회가 있어 날짜까지 넣으면, 그날에 맞춰 기초기 → 강화기 → 피크기 → 테이퍼로 계획해요.</p>';
   return '<section class="card"><div class="card-head"><h2>목표와 훈련 단계 ' + infoBtn('plan') + '</h2><button class="link" data-act="go" data-v="settings">설정</button></div>' + body +
     '<p class="xs muted" style="margin-top:8px">주 ' + (S.runsPerWeek || 4) + '회 · 장거리 ' + WD[S.longRunDay || 0] + '요일 · 이번 주 목표 ' + plan.weekKm + 'km (장거리 ' + plan.longKm + 'km)</p></section>';
 }
@@ -3812,7 +3819,7 @@ function vSettings() {
   const fld = (id, label, input, hint, inline) => '<div class="field' + (inline ? ' inline' : '') + '"><label for="' + id + '">' + label + '</label>' + input + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</div>';
   const num2 = (id, v, ph, min, max, dec) => '<input id="' + id + '" type="number" inputmode="' + (dec ? 'decimal' : 'numeric') + '" step="' + (dec ? '0.1' : '1') + '" min="' + min + '" max="' + max + '" value="' + (v || '') + '" placeholder="' + esc(ph) + '">';
   let h = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div><div class="page-head"><div><h1>설정</h1><div class="page-sub">비워 두면 기록에서 자동으로 계산해요</div></div></div>';
-  h += '<form id="settings-form" class="card" novalidate><div class="card-head"><h2>내 정보</h2></div>' +
+  h += '<form id="settings-form" class="card" novalidate data-goal="' + (+S.goalDist > 0 ? 1 : 0) + '"><div class="card-head"><h2>내 정보</h2></div>' +
     fld('sex', '성별', seg('sex', S.sex || '', [['', '자동'], ['male', '남성'], ['female', '여성']]), '심박 기반 부하 계산과 체력 나이에 쓰여요.') +
     fld('birthYear', '출생 연도', num2('birthYear', S.birthYear, P.ageKnown ? '자동: ' + (civilFromDays(st.M.today)[0] - P.age) : '예: 1990', 1920, 2020), '', true) +
     fld('weight', '체중 (kg)', num2('weight', S.weight, P.weight ? '자동: ' + P.weight : '예: 68.5', 30, 200, true), '', true) +
@@ -3825,9 +3832,10 @@ function vSettings() {
     '<div class="card-head" style="margin-top:14px"><h2>훈련 계획 ' + infoBtn('plan') + '</h2></div>' +
     fld('runsPerWeek', '주당 러닝 횟수', '<select id="runsPerWeek">' + [2, 3, 4, 5, 6, 7].map(v => '<option value="' + v + '"' + (+S.runsPerWeek === v ? ' selected' : '') + '>주 ' + v + '회</option>').join('') + '</select>', '', true) +
     fld('longRunDay', '장거리 요일', '<select id="longRunDay">' + [6, 0, 1, 2, 3, 4, 5].map(v => '<option value="' + v + '"' + (+S.longRunDay === v ? ' selected' : '') + '>' + WD[v] + '요일</option>').join('') + '</select>', '', true) +
-    fld('goalDist', '목표 대회', '<select id="goalDist">' + [[0, '없음 (꾸준한 향상)'], [5000, '5K'], [10000, '10K'], [21097.5, '하프 마라톤'], [42195, '풀 마라톤']].map(([v, n]) => '<option value="' + v + '"' + (+S.goalDist === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>', '', true) +
-    fld('goalDate', '대회 날짜', '<input id="goalDate" type="date" value="' + esc(S.goalDate || '') + '">', '', true) +
-    fld('goalTime', '목표 기록', '<input id="goalTime" type="text" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="예: 50:00 또는 3:59:00" value="' + esc(S.goalTime || '') + '">', '시간:분:초처럼 쌍점(:)으로 나눠 적어요. 50:00은 50분, 3:59:00은 3시간 59분이에요. 숫자만 적어도 돼요(35900 → 3:59:00). 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true) +
+    fld('goalDist', '목표 거리', '<select id="goalDist">' + [[0, '없음 (꾸준한 향상)'], [5000, '5K'], [10000, '10K'], [21097.5, '하프 마라톤'], [42195, '풀 마라톤']].map(([v, n]) => '<option value="' + v + '"' + (+S.goalDist === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>', '', true) +
+    fld('goalDate', '대회 날짜 (선택)', '<div class="date-row"><input id="goalDate" type="date" value="' + esc(S.goalDate || '') + '"><button type="button" class="link" data-act="cleardate"' + (S.goalDate ? '' : ' hidden') + '>지우기</button></div>',
+      '접수한 대회가 있을 때만 적어요. 날짜를 넣으면 그날에 맞춰 기초기 → 강화기 → 피크기 → 테이퍼로 계획하고, 비워 두면 목표 거리에 맞춘 꾸준한 향상 계획을 짜요.', false).replace('class="field', 'class="field goal-only') +
+    fld('goalTime', '목표 기록 (선택)', '<input id="goalTime" type="text" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="예: 50:00 또는 3:59:00" value="' + esc(S.goalTime || '') + '">', '시간:분:초처럼 쌍점(:)으로 나눠 적어요. 50:00은 50분, 3:59:00은 3시간 59분이에요. 숫자만 적어도 돼요(35900 → 3:59:00). 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true).replace('class="field', 'class="field goal-only') +
     fld('sleepNeed', '목표 수면 시간', num2('sleepNeed', S.sleepNeed, '8', 5, 11, true), '수면 점수의 시간 기준이에요. 7.5처럼 적어도 돼요.', true) +
     '<div style="display:grid;gap:8px;margin-top:14px"><button class="btn block" type="submit" id="btn-save">저장하고 다시 분석</button><button class="btn ghost block" type="button" data-act="reset-settings">자동값으로 되돌리기</button></div>' +
     (st.savedAt ? '<p class="xs muted" style="margin-top:8px;text-align:center">' + esc(st.savedAt) + '에 저장하고 다시 분석했어요</p>' : '') + '</form>';
@@ -4041,6 +4049,7 @@ document.addEventListener('click', e => {
     case 'reset-settings': st.settings = {}; st.savedAt = null; LS.set('settings', {}); DB.set('settings', {}); recompute(); render(true); toast('자동값으로 되돌렸어요'); break;
     case 'pick-health': closeSheet(); $('#file-health').click(); break;
     case 'mapfull': openMapFull(v); break;
+    case 'cleardate': { const d = $('#goalDate'); if (d) d.value = ''; a.hidden = true; break; }
     case 'mapclose': closeMapFull(); break;
     case 'howto': openSheet(howtoSheet()); break;
     case 'pick-backup': $('#file-backup').click(); break;
@@ -4068,12 +4077,18 @@ function saveSettings() {
   if (lt >= mx || lt <= rs) return toast('젖산역치 심박은 안정 심박과 최대 심박 사이여야 해요');
   if (S.goalTime && !parseGoalTime(S.goalTime)) return toast('목표 기록은 50:00(50분)이나 3:59:00(3시간 59분)처럼 적어 주세요');
   if (S.goalTime) S.goalTime = fmtDur(parseGoalTime(S.goalTime));
-  if (S.goalDist && !S.goalDate) return toast('대회 날짜도 입력해 주세요');
+  if (!S.goalDist) { S.goalDate = ''; S.goalTime = ''; } // no goal distance: a date or time on their own mean nothing
   st.settings = S; LS.set('settings', S); DB.set('settings', S);
   recompute();
   const now = new Date(); st.savedAt = timeKo(now.getTime() / 1000, -now.getTimezoneOffset() * 60);
-  render(true); toast('저장했어요. 새 설정으로 다시 분석했어요');
+  render(true);
+  const gd = S.goalDate ? isoToDay(S.goalDate) : NaN;
+  toast(S.goalDist && isNum(gd) && gd < st.M.today ? '저장했어요. 대회 날짜가 지나서 목표 거리에 맞춘 꾸준한 향상 계획으로 짰어요' : '저장했어요. 새 설정으로 다시 분석했어요');
 }
+document.addEventListener('change', e => {
+  if (e.target.id === 'goalDist') { const f = $('#settings-form'); if (f) f.dataset.goal = +e.target.value > 0 ? 1 : 0; }
+  if (e.target.id === 'goalDate') { const b = document.querySelector('[data-act="cleardate"]'); if (b) b.hidden = !e.target.value; }
+});
 document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview(); });
 // tidy the goal time when leaving the box: '35900' or '3.59.00' becomes '3:59:00'
 document.addEventListener('focusout', e => { if (e.target.id === 'goalTime') { const t = parseGoalTime(e.target.value); if (t) e.target.value = fmtDur(t); } });
