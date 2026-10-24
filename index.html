@@ -3810,12 +3810,12 @@ function haeSetupHTML() {
   return '<p class="small ink2" style="margin-top:8px">달릴 때마다 건강 앱에서 내보낼 필요가 없도록, <b>Health Auto Export</b> 앱이 최근 기록을 iCloud Drive에 알아서 저장하게 해요. 자동화는 이 앱의 유료(프리미엄) 기능이에요.</p>' +
     '<ol class="steps-guide" style="margin-top:12px">' +
     '<li><span>App Store에서 <b>Health Auto Export - JSON+CSV</b>를 설치해요. 처음 열 때 나오는 건강 데이터 접근은 <b>모두 허용</b>해요.</span></li>' +
-    '<li><span>앱 메뉴에서 <b>Automations</b> → <b>New Automation</b> → <b>iCloud Drive</b>를 고르고, 이름을 <b>SOOM 운동</b>으로 적어요. 아래처럼 맞추고 저장해요.' +
-      setRows([['Data Type', 'Workouts'], ['Include Route Data', '켜기'], ['Include Workout Metrics', '켜기'], ['Export Format', 'JSON'], ['Export Version', 'Version 2'], ['Time Grouping', 'Seconds'], ['Date Range', 'Week'], ['Sync Cadence', '1시간마다']]) + '</span></li>' +
-    '<li><span>같은 방법으로 자동화를 하나 더 만들고 이름을 <b>SOOM 건강</b>으로 적어요.' +
-      setRows([['Data Type', 'Health Metrics'], ['Select Health Metrics', '아래 목록'], ['Summarize Data', '끄기'], ['Export Format', 'JSON'], ['Export Version', 'Version 2'], ['Date Range', 'Week'], ['Sync Cadence', '1시간마다']]) +
+    '<li><span>앱 메뉴에서 <b>Automations</b> → <b>New Automation</b> → <b>iCloud Drive</b>를 고르고, 이름을 <b>SOOM 운동</b>으로 적어요. 아래처럼 맞춘 뒤 오른쪽 위 <b>Update</b>를 눌러 저장해요. 맨 위 <b>Enabled</b>가 꺼져 있으면 자동으로 돌지 않아요.' +
+      setRows([['Enabled', '켜기'], ['Data Type', 'Workouts'], ['Include Route Data', '켜기'], ['Include Workout Metrics', '켜기'], ['Time Grouping', 'Seconds'], ['Export Format', 'JSON'], ['Export Version', 'v2'], ['Date Range', 'Week'], ['Sync Frequency', 'Every 1 Hours']]) + '</span></li>' +
+    '<li><span>자동화를 하나 더 만들고 이름을 <b>SOOM 건강</b>으로 적어요. 첫 번째 자동화 화면 아래의 <b>Duplicate Automation</b>으로 복사한 뒤 바꾸면 쉬워요. 이번에도 <b>Update</b>로 저장해요.' +
+      setRows([['Enabled', '켜기'], ['Data Type', 'Health Metrics'], ['Select Health Metrics', '아래 목록'], ['Summarize Data', '끄기'], ['Export Format', 'JSON'], ['Export Version', 'v2'], ['Date Range', 'Week'], ['Sync Frequency', 'Every 1 Hours']]) +
       '<span class="xs muted" style="display:block;margin-top:6px">고를 항목: ' + esc(HAE_METRICS) + '</span></span></li>' +
-    '<li><span>자동화마다 <b>Manual Export</b>를 한 번 눌러 저장해 봐요. <b>파일</b> 앱 → iCloud Drive → <b>AutoExport</b> 안에 두 폴더가 생기면 성공이에요.</span></li>' +
+    '<li><span>자동화마다 아래쪽 <b>Manual Upload</b>를 한 번 눌러 저장해 봐요. <b>파일</b> 앱 → iCloud Drive → <b>AutoExport</b> 안에 두 폴더가 생기면 성공이에요.</span></li>' +
     '<li><span>위의 <b>파일 선택</b>을 눌러 두 폴더의 최신 파일을 가져와요.</span></li></ol>' +
     '<p class="xs muted" style="margin-top:10px">아이폰 잠금이 풀려 있을 때만 저장돼요. 잠긴 아이폰에서는 애플이 건강 데이터를 막기 때문이에요. 설정 → 일반 → <b>백그라운드 앱 새로 고침</b>을 켜 두세요. 저전력 모드에서는 늦어질 수 있어요. 앱 메뉴가 한국어로 보이면 같은 뜻의 항목을 고르면 돼요.</p>';
 }
