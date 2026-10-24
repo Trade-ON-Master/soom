@@ -42,7 +42,7 @@
   --bad: #c62828; --bad-soft: #fbe5e5;
   --g-red: #e2484c; --g-orange: #ee9d24; --g-green: #1aa56d; --g-blue: #3a8ad3; --g-purple: #7c4ddb;
   --sleep-deep: #3330a8; --sleep-core: #6f7ce8; --sleep-rem: #4fb7e8; --sleep-awake: #f1a33c;
-  --s1: #3b39d1; --s2: #ee9d24; --s3: #1aa56d;
+  --s1: #3b39d1; --s2: #ee9d24; --s3: #1aa56d; --s4: #d1376f;
   --shadow: 0 1px 2px rgba(18, 20, 27, .05), 0 8px 24px rgba(18, 20, 27, .05);
   --font-ui: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
   --font-num: "Barlow Condensed", "SF Pro Display", "Arial Narrow", -apple-system, system-ui, sans-serif;
@@ -56,7 +56,7 @@
     --good: #4ade80; --good-soft: #13291b; --warn: #fbbf24; --warn-soft: #2e2410; --bad: #f87171; --bad-soft: #321718;
     --g-red: #ee5d62; --g-orange: #f2ad45; --g-green: #2dba80; --g-blue: #4f9be0; --g-purple: #a07cf0;
     --sleep-deep: #6b67e8; --sleep-core: #8d97f0; --sleep-rem: #63c3ef; --sleep-awake: #f2ad45;
-    --s1: #9085e9; --s2: #d95926; --s3: #199e70;
+    --s1: #9085e9; --s2: #d95926; --s3: #199e70; --s4: #e56b9b;
     --shadow: none; color-scheme: dark;
   }
 }
@@ -67,7 +67,7 @@
   --good: #4ade80; --good-soft: #13291b; --warn: #fbbf24; --warn-soft: #2e2410; --bad: #f87171; --bad-soft: #321718;
   --g-red: #ee5d62; --g-orange: #f2ad45; --g-green: #2dba80; --g-blue: #4f9be0; --g-purple: #a07cf0;
   --sleep-deep: #6b67e8; --sleep-core: #8d97f0; --sleep-rem: #63c3ef; --sleep-awake: #f2ad45;
-  --s1: #9085e9; --s2: #d95926; --s3: #199e70;
+  --s1: #9085e9; --s2: #d95926; --s3: #199e70; --s4: #e56b9b;
   --shadow: none; color-scheme: dark;
 }
 
@@ -513,6 +513,44 @@ details.more[open] summary::after { content: "접기"; }
 .memo-show svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
 .run-row .main .l3 { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* ---- same courses, comparing runs ---- */
+.runs-tabs { margin-top: 12px; }
+.crs-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); width: 100%; background: none; text-align: left; color: inherit; }
+.crs-row:last-child { border-bottom: 0; }
+.crs-row .l1 b { font-size: 16px; }
+.crs-row .l2 { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.crs-row > svg:last-child, .crs-link > svg:last-child { width: 18px; height: 18px; color: var(--muted); }
+.crs-row .l1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
+.tr-up { color: var(--good); background: var(--good-soft); } .tr-down { color: var(--warn); background: var(--warn-soft); }
+.cmp-space { height: 76px; }
+.crs-thumb { width: 56px; height: 56px; border-radius: 12px; background: var(--surface-2); display: block; flex: none; }
+.crs-link { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; background: var(--surface-2); border: 0; border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; text-align: left; color: inherit; }
+.crs-link .crs-thumb { width: 44px; height: 44px; background: var(--surface); }
+.crs-link > span { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.run-row.pick { grid-template-columns: 24px 46px minmax(0, 1fr) auto; }
+.pick-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; }
+.run-row[aria-pressed="true"] .pick-dot { background: var(--accent); border-color: var(--accent); }
+.run-row[aria-pressed="true"] .pick-dot::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--accent-ink); border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.run-row[aria-pressed="true"] { background: var(--accent-soft); }
+.cmp-bar { position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); z-index: 24; display: flex; justify-content: center; padding: 0 16px 10px; pointer-events: none; }
+.cmp-bar-in { pointer-events: auto; max-width: 688px; width: 100%; display: flex; align-items: center; gap: 8px; background: var(--ink); color: var(--bg); border-radius: 16px; padding: 10px 10px 10px 16px; box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.cmp-bar-in span { flex: 1; font-size: 14px; font-weight: 600; min-width: 0; }
+.cmp-bar-in .cmp-x { color: var(--bg); border-color: color-mix(in srgb, var(--bg) 35%, transparent); }
+.cmp-bar-in .btn[disabled] { opacity: .45; }
+.cmp-legend { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--ink); }
+.cmp-chip i, .cdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.cdot { margin-right: 4px; vertical-align: 0; }
+.tbl.cmp { width: 100%; font-size: 13px; }
+.tbl.cmp td:first-child { color: var(--ink-2); white-space: normal; min-width: 64px; max-width: 96px; line-height: 1.3; }
+.tbl.cmp td, .tbl.cmp th { padding-inline: 3px; font-variant-numeric: tabular-nums; vertical-align: top; }
+.tbl.cmp th { font-size: 11px; }
+.tbl.cmp .sub { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.nag { border: 1px solid var(--line); }
+.nag .ic { flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); }
+.nag .ic svg { width: 17px; height: 17px; }
 </style>
 <div id="app">
   <header class="top">
@@ -3579,6 +3617,182 @@ function wxInsights(r) {
   return out;
 }
 
+// ===== core_course.js — same courses: runs that follow the same path, compared with the weather taken out =====
+// Found from the route shape alone, on the device: the start and the finish within 250 m, the distance within 12 %, and at least
+// 85 % of each path within 60 m of the other's. Comparisons use the moving pace with the heat/wind effect (러닝 날씨 영향) taken out.
+const CRS = { step: 50, near: 60, share: 0.85, endM: 250, tol: 0.12, minM: 1000, maxPts: 400 };
+const CSIG = new Map();
+// the route resampled every 50 m (lat/lon), kept per run
+function courseSig(r) {
+  const rt = r && !r.indoor && r.route; if (!rt || !rt.la || rt.la.length < 10 || !rt.d || rt.d.length !== rt.la.length) return null;
+  const total = rt.d[rt.d.length - 1]; if (!(total >= CRS.minM)) return null;
+  const hit = CSIG.get(r.id); if (hit && hit.np === rt.la.length && hit.total === total) return hit;
+  const n = clamp(Math.round(total / CRS.step) + 1, 20, CRS.maxPts), la = [], lo = [];
+  let j = 0;
+  for (let k = 0; k < n; k++) {
+    const want = total * k / (n - 1);
+    while (j < rt.d.length - 2 && rt.d[j + 1] < want) j++;
+    const d0 = rt.d[j], d1 = rt.d[j + 1], f = d1 > d0 ? clamp((want - d0) / (d1 - d0), 0, 1) : 0;
+    la.push(rt.la[j] + (rt.la[j + 1] - rt.la[j]) * f); lo.push(rt.lo[j] + (rt.lo[j + 1] - rt.lo[j]) * f);
+  }
+  const sig = { id: r.id, np: rt.la.length, total, n, la, lo, loop: haversine(la[0], lo[0], la[n - 1], lo[n - 1]) < 300 };
+  CSIG.set(r.id, sig);
+  return sig;
+}
+// share of a's points (every other one, ~100 m apart) within CRS.near metres of b's path; flat metres around a's start
+function pathShare(a, b) {
+  const kx = 111320 * Math.cos(a.la[0] * RAD), ky = 110574, ox = a.lo[0], oy = a.la[0];
+  const bx = b.lo.map(v => (v - ox) * kx), by = b.la.map(v => (v - oy) * ky), near2 = CRS.near * CRS.near;
+  let ok = 0, all = 0, k0 = 0;
+  for (let i = 0; i < a.n; i += 2) {
+    const px = (a.lo[i] - ox) * kx, py = (a.la[i] - oy) * ky; all++;
+    let best = Infinity, bk = k0;
+    // look near where the last point matched first (paths run alongside), then everywhere if needed
+    const tryK = k => { const vx = bx[k + 1] - bx[k], vy = by[k + 1] - by[k], L2 = vx * vx + vy * vy, t = L2 > 0 ? clamp(((px - bx[k]) * vx + (py - by[k]) * vy) / L2, 0, 1) : 0, dx = bx[k] + t * vx - px, dy = by[k] + t * vy - py, d2 = dx * dx + dy * dy; if (d2 < best) { best = d2; bk = k; } };
+    for (let k = Math.max(0, k0 - 12); k < Math.min(b.n - 1, k0 + 24); k++) tryK(k);
+    if (best > near2) for (let k = 0; k < b.n - 1; k++) tryK(k);
+    if (best <= near2) { ok++; k0 = bk; }
+  }
+  return all ? ok / all : 0;
+}
+function sameCourse(a, b) {
+  if (!a || !b) return false;
+  if (Math.abs(a.total - b.total) > CRS.tol * Math.max(a.total, b.total)) return false;
+  if (haversine(a.la[0], a.lo[0], b.la[0], b.lo[0]) > CRS.endM || haversine(a.la[a.n - 1], a.lo[a.n - 1], b.la[b.n - 1], b.lo[b.n - 1]) > CRS.endM) return false;
+  return pathShare(a, b) >= CRS.share && pathShare(b, a) >= CRS.share;
+}
+// pace with the heat/wind effect taken out (s/km): a slower run on a hot or windy day counts as faster than it looked
+function adjPace(r) { const p = r.moving / Math.max(1, r.dist) * 1000; return p / wxFactor(r); }
+
+// group runs into courses (2 runs or more), most used first
+function findCourses(runs) {
+  const list = [];
+  for (const r of runs || []) { const s = courseSig(r); if (s) list.push({ r, s }); }
+  list.sort((a, b) => a.r.start - b.r.start);
+  const groups = [];
+  for (const x of list) {
+    let home = null;
+    for (const g of groups) {
+      if (Math.abs(g.rep.total - x.s.total) > CRS.tol * Math.max(g.rep.total, x.s.total)) continue;
+      if (haversine(g.rep.la[0], g.rep.lo[0], x.s.la[0], x.s.lo[0]) > CRS.endM * 2) continue;
+      if (sameCourse(g.rep, x.s) || (g.last !== g.rep && sameCourse(g.last, x.s))) { home = g; break; }
+    }
+    if (home) { home.runs.push(x.r); home.last = x.s; } else groups.push({ rep: x.s, last: x.s, runs: [x.r] });
+  }
+  return groups.filter(g => g.runs.length >= 2).map(courseOf)
+    .sort((a, b) => (b.n - a.n) || (b.lastDay - a.lastDay));
+}
+function courseOf(g) {
+  const runs = g.runs.slice().sort((a, b) => a.start - b.start);
+  const rows = runs.map(r => ({ id: r.id, day: r.day, start: r.start, dist: r.dist, moving: r.moving, pace: r.moving / Math.max(1, r.dist) * 1000, adj: adjPace(r), wxPct: r.wx ? r.wx.tot : 0,
+    hr: r.hrAvg ? Math.round(r.hrAvg) : null, ef: r.efW || r.ef || null, label: r.label, t: r.wx ? r.wx.t : null }));
+  const byAdj = rows.slice().sort((a, b) => a.adj - b.adj); byAdj.forEach((x, i) => { x.rank = i + 1; });
+  const best = byAdj[0], bestRaw = rows.reduce((b, x) => !b || x.pace < b.pace ? x : b, null);
+  // aerobic shape on this course: pace at the course's usual heart rate (heat/wind taken out), for runs with steady heart rate
+  const refHR = Math.round(median(rows.filter(x => x.hr).map(x => x.hr)) || 0);
+  for (const x of rows) x.hrPace = x.ef && refHR ? 60000 / (x.ef * refHR) : null;
+  // trends over the last 120 days (4 runs or more across 3 weeks): seconds per km per 30 days, negative = faster.
+  // The pace at one heart rate shows fitness whatever the effort was; the weather-adjusted pace mixes easy and hard days.
+  const last = rows[rows.length - 1], recent = rows.filter(x => x.day > last.day - 120);
+  const reg = pts => {
+    if (pts.length < 4 || pts[pts.length - 1].x - pts[0].x < 21) return null;
+    const mx = mean(pts.map(p => p.x)), my = mean(pts.map(p => p.y)); let num = 0, den = 0;
+    for (const p of pts) { num += (p.x - mx) * (p.y - my); den += (p.x - mx) ** 2; }
+    const per30 = den > 0 ? num / den * 30 : NaN;
+    return isNum(per30) && Math.abs(per30) <= 30 ? { per30: round(per30, 1), n: pts.length, days: pts[pts.length - 1].x - pts[0].x } : null; // bigger swings are noise
+  };
+  const trend = reg(recent.map(x => ({ x: x.day, y: x.adj }))), trendHR = reg(recent.filter(x => x.hrPace).map(x => ({ x: x.day, y: x.hrPace })));
+  return { id: runs[0].id, ids: runs.map(r => r.id), n: runs.length, dist: median(runs.map(r => r.dist)), loop: g.rep.loop, start: [g.rep.la[0], g.rep.lo[0]],
+    rows, best, bestRaw, refHR, trend, trendHR, lastDay: last.day, latest: runs[runs.length - 1].id };
+}
+// where a run stands on its course: its rank, and the difference from the previous run and the best (adjusted, s/km)
+function courseSpot(course, id) {
+  if (!course) return null;
+  const i = course.rows.findIndex(x => x.id === id); if (i < 0) return null;
+  const me = course.rows[i], prev = i > 0 ? course.rows[i - 1] : null;
+  const others = course.rows.filter(x => x.id !== id), best = others.length ? others.reduce((b, x) => !b || x.adj < b.adj ? x : b, null) : null;
+  return { me, nth: i + 1, n: course.n, rank: me.rank, prev, best, dPrev: prev ? round(me.adj - prev.adj, 1) : null, dPrevRaw: prev ? round(me.pace - prev.pace, 1) : null, dBest: best ? round(me.adj - best.adj, 1) : null };
+}
+
+// ---------- comparing runs ----------
+// each run's series on one distance grid (every 50–200 m), so lines can be drawn over each other; time is moving time
+function cmpGrid(runs) {
+  const maxD = Math.max(...runs.map(r => r.ser && r.ser.d.length ? r.ser.d[r.ser.d.length - 1] : 0));
+  const step = maxD > 30000 ? 200 : maxD > 15000 ? 100 : 50, x = [];
+  for (let d = 0; d <= maxD + 1e-9; d += step) x.push(d);
+  return { step, x };
+}
+function cmpSeries(r, grid) {
+  const s = r.ser, n = s.d.length, out = { pace: [], hr: [], t: [] };
+  if (!n) return out;
+  const end = s.d[n - 1];
+  // speeds averaged over about 150 m, so GPS noise does not hide the shape
+  for (const d of grid.x) {
+    if (d > end + 1e-9) { out.pace.push(null); out.hr.push(null); out.t.push(null); continue; }
+    let i = 0, lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (s.d[m] < d) lo = m + 1; else hi = m; } i = lo;
+    const tAt = i === 0 ? s.t[0] * (s.d[0] > 0 ? d / s.d[0] : 0) : s.t[i - 1] + (s.t[i] - s.t[i - 1]) * (s.d[i] > s.d[i - 1] ? (d - s.d[i - 1]) / (s.d[i] - s.d[i - 1]) : 0);
+    out.t.push(round(tAt, 1));
+    let vs = 0, vc = 0, hs = 0, hc = 0;
+    for (let k = i; k >= 0 && s.d[k] >= d - 75; k--) { if (s.v[k] > 80) { vs += s.v[k]; vc++; } if (s.h[k] > 0) { hs += s.h[k]; hc++; } }
+    for (let k = i + 1; k < n && s.d[k] <= d + 75; k++) { if (s.v[k] > 80) { vs += s.v[k]; vc++; } if (s.h[k] > 0) { hs += s.h[k]; hc++; } }
+    out.pace.push(vc ? round(100000 / (vs / vc), 1) : null); out.hr.push(hc ? Math.round(hs / hc) : null);
+  }
+  return out;
+}
+// summary rows for the comparison table; "better" says which way is good for highlighting the best value
+function cmpRows(runs) {
+  const v = f => runs.map(f);
+  return [
+    { k: 'dist', name: '거리', vals: v(r => r.dist), better: null },
+    { k: 'moving', name: '운동 시간', vals: v(r => r.moving), better: null },
+    { k: 'pace', name: '평균 페이스', vals: v(r => r.moving / Math.max(1, r.dist) * 1000), better: 'low' },
+    { k: 'adj', name: '날씨 보정', vals: v(r => adjPace(r)), better: 'low', info: 'wx' },
+    { k: 'gap', name: '경사 보정', vals: v(r => { const s = r.ser; let g = 0, w = 0; for (let i = 0; i < s.t.length; i++) { g += s.gv[i]; w += s.v[i]; } return g > 0 && r.gps ? r.moving / Math.max(1, r.dist) * 1000 * w / g : null; }), better: 'low', info: 'gap' },
+    { k: 'hr', name: '평균 심박', vals: v(r => r.hrAvg ? Math.round(r.hrAvg) : null), better: null },
+    { k: 'hrPace', name: '같은 심박 페이스', vals: null, better: 'low', info: 'efficiency' },
+    { k: 'cad', name: '케이던스', vals: v(r => r.cad || null), better: null },
+    { k: 'pw', name: '파워', vals: v(r => r.pw || null), better: null },
+    { k: 'up', name: '오른 높이', vals: v(r => r.indoor ? null : r.up), better: null },
+    { k: 'wx', name: '날씨', vals: v(r => r.wx || null), better: null },
+    { k: 'wxPct', name: '날씨 영향', vals: v(r => r.wx ? r.wx.tot : null), better: null, info: 'wx' },
+    { k: 'load', name: '훈련 부하', vals: v(r => r.load || null), better: null, info: 'load' },
+    { k: 'teA', name: '유산소 효과', vals: v(r => isNum(r.teA) ? r.teA : null), better: null, info: 'te' },
+  ].map(row => {
+    if (row.k === 'hrPace') { // pace at one shared heart rate (the selected runs' median), heat/wind taken out
+      const hrs = runs.map(r => r.hrAvg).filter(isNum), ref = Math.round(median(hrs) || 0);
+      row.vals = runs.map(r => (r.efW || r.ef) && ref ? 60000 / ((r.efW || r.ef) * ref) : null); row.ref = ref;
+    }
+    return row;
+  });
+}
+// what stands out between the runs (oldest → newest): pace with and without the weather, aerobic shape, pacing, cadence
+function cmpInsights(runs) {
+  const out = []; if (!runs || runs.length < 2) return out;
+  const rs = runs.slice().sort((a, b) => a.start - b.start), A = rs[0], B = rs[rs.length - 1];
+  const day = r => fmtDayShort(r.day), pace = r => r.moving / Math.max(1, r.dist) * 1000;
+  const d = Math.round(pace(B) - pace(A)), da = Math.round(adjPace(B) - adjPace(A));
+  const farDist = Math.abs(B.dist - A.dist) > 0.15 * Math.max(A.dist, B.dist);
+  const word = (x, fast, slow) => Math.abs(x) < 2 ? '거의 같아요' : 'km당 ' + Math.abs(x) + '초 ' + (x < 0 ? fast : slow);
+  let t = day(B) + ' 기록이 ' + day(A) + '보다 평균 페이스가 ' + word(d, '빨라요', '느려요');
+  if ((A.wx || B.wx) && Math.abs(da - d) >= 2) t += '. 날씨 영향을 빼면 ' + word(da, '빨라요', '느려요');
+  out.push({ tone: da <= -2 ? 'good' : da >= 4 ? 'warn' : 'info', text: t + '.' + (farDist ? ' 거리가 많이 달라서 페이스 차이에는 거리 차이도 섞여 있어요.' : '') });
+  if (rs.length > 2) { const best = rs.reduce((b, r) => !b || adjPace(r) < adjPace(b) ? r : b, null); out.push({ tone: 'info', text: '날씨 영향을 뺀 기록은 ' + day(best) + ' 러닝이 가장 빨라요.' }); }
+  const wxs = rs.filter(r => r.wx), hot = wxs.length >= 2 ? wxs.reduce((b, r) => !b || r.wx.tot > b.wx.tot ? r : b, null) : null, cool = hot ? wxs.reduce((b, r) => !b || r.wx.tot < b.wx.tot ? r : b, null) : null;
+  if (hot && cool && hot.wx.tot - cool.wx.tot >= 1) out.push({ tone: 'info', text: day(hot) + '은 기온 ' + Math.round(hot.wx.t) + '°' + (isNum(hot.wx.dp) ? '(이슬점 ' + Math.round(hot.wx.dp) + '°)' : '') + (isNum(hot.wx.ws) && hot.wx.ws >= 3 ? ', 바람 ' + hot.wx.ws.toFixed(1) + 'm/s' : '') + '로, 같은 노력에도 ' + day(cool) + '보다 약 ' + (hot.wx.tot - cool.wx.tot).toFixed(1) + '% 느려지는 날씨였어요.' });
+  // pace at one shared heart rate: the clearest sign of aerobic fitness
+  const ref = Math.round(median(rs.map(r => r.hrAvg).filter(isNum)) || 0), eA = A.efW || A.ef, eB = B.efW || B.ef;
+  if (eA && eB && ref) {
+    const dh = Math.round(60000 / (eB * ref) - 60000 / (eA * ref));
+    if (Math.abs(dh) >= 3) out.push({ tone: dh < 0 ? 'good' : 'warn', text: '같은 심박(' + ref + 'bpm)에서 낼 수 있는 페이스가 km당 ' + Math.abs(dh) + '초 ' + (dh < 0 ? '빨라졌어요. 유산소 체력이 좋아졌다는 신호예요.' : '느려졌어요. 피로가 쌓였거나 컨디션이 떨어졌을 수 있어요.') });
+  }
+  // pacing: second half against the first half
+  const half = r => { const s = r.ser, n = s && s.d ? s.d.length : 0; if (n < 12) return null; const h = s.d[n - 1] / 2; let i = 0; while (i < n - 1 && s.d[i] < h) i++; const t1 = s.t[i], d1 = s.d[i], t2 = s.t[n - 1] - t1, d2 = s.d[n - 1] - d1; return d1 > 200 && d2 > 200 ? (t2 / d2) / (t1 / d1) - 1 : null; };
+  const hB = half(B), hA = half(A);
+  if (isNum(hB) && Math.abs(hB) >= 0.02) out.push({ tone: hB < 0 ? 'good' : 'info', text: day(B) + ' 기록은 후반이 전반보다 ' + Math.round(Math.abs(hB) * 100) + '% ' + (hB < 0 ? '빨랐어요(네거티브 스플릿).' : '느렸어요.' + (isNum(hA) && hA < hB - 0.02 ? ' ' + day(A) + '에는 더 고르게 달렸어요.' : ' 초반을 조금 늦추면 끝까지 고르게 달릴 수 있어요.')) });
+  if (A.cad && B.cad && Math.abs(B.cad - A.cad) >= 3) out.push({ tone: 'info', text: '케이던스가 ' + A.cad + ' → ' + B.cad + 'spm으로 ' + (B.cad > A.cad ? '늘었어요.' : '줄었어요.') });
+  return out;
+}
+
 // ===== core_gear.js — running shoes: mileage added up automatically from the runs, by what each shoe is used for =====
 const SHOE_USES = [['daily', '데일리', '이지·회복'], ['long', '장거리', ''], ['speed', '스피드', '템포·인터벌'], ['race', '대회', '']];
 const SHOE_LIFE = 600; // km, a common replacement point (most shoes: 500–800 km)
@@ -3763,7 +3977,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "ca18ede16a"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "504ea83a67"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -4109,6 +4323,7 @@ const INFO = {
   bestTime: { t: '러닝 날씨 · 달리기 좋은 시간', b: '지금 날씨와 앞으로 12시간 예보, 그리고 오늘(이미 달렸거나 늦은 시간이면 내일) 날씨 부담이 가장 적은 시간대를 보여줘요. 평소 달리던 시간대를 먼저 고려하고, 더위·비·강풍·미세먼지·어둠이 심하면 다른 시간을 추천해요.', how: '오전 5시~오후 10시 사이 시간마다 더위(해들리 표), 체감 추위, 비(양·확률), 뇌우·눈, 바람, 미세먼지, 어두움을 점수로 매겨 훈련 길이만큼 이어진 가장 좋은 시간대를 골라요. 최근 러닝 30번의 평소 시각과 멀수록 점수를 조금 깎아요. 예보는 1시간마다 새로 받아요. 한국 안에서는 기상청 단기예보(앞으로 3일)를, 그 뒤의 날짜와 해외는 Open-Meteo를 써요.', ref: '' },
   pm: { t: '미세먼지 기준', b: '환경부 기준을 써요. 초미세먼지(PM2.5) 0~15 좋음 · 16~35 보통 · 36~75 나쁨 · 76 이상 매우 나쁨. 미세먼지(PM10) 0~30 좋음 · 31~80 보통 · 81~150 나쁨 · 151 이상 매우 나쁨. 나쁨이면 강도 높은 훈련은 실내나 다른 날로, 매우 나쁨이면 실내 러닝을 권해요.', how: '한국 안에서는 에어코리아(한국환경공단)의 측정소 실시간 값과 미세먼지 예보를 써요. 동네 이름과 같은 측정소가 있으면 그 값을, 없으면 시·도 평균을 보여 줘요. 실시간 자료는 확정 전 값이라 나중에 바뀔 수 있어요. 그 밖의 지역과 날짜는 유럽 코페르니쿠스 대기 감시 서비스(CAMS)의 예보(약 40km 간격, 참고용)를 Open-Meteo로 받아요.', ref: '' },
   intervals: { t: '인터벌 자동 감지', b: '빠르게 달린 구간을 자동으로 찾아 반복 기록을 보여줘요.', how: '평소 속도보다 12% 이상, 그리고 역치 속도에 가깝게 30초 이상 달린 구간을 찾아요.', ref: '' },
+  course: { t: '같은 코스', b: '출발·도착 지점과 지나간 길이 거의 같은 러닝을 자동으로 같은 코스로 묶어요. 같은 길에서 기록이 어떻게 변했는지 보면 실력 변화를 가장 정확하게 알 수 있어요. 더운 날이나 바람 부는 날은 같은 노력에도 느려지기 때문에, 날씨 영향을 뺀 날씨 보정 페이스로 순위를 매겨요.', how: '경로를 50m 간격으로 나눠, 출발과 도착이 각각 250m 안이고 거리 차이가 12% 안이며 서로의 경로가 85% 이상 60m 안에 겹치면 같은 코스로 봐요. 시간은 멈춘 시간을 뺀 운동 시간이에요. 날씨 보정 페이스는 실제 페이스를 날씨 영향(%)만큼 나눈 값이고, 같은 심박의 페이스는 심박 1번에 달린 거리(날씨 보정)로 그 코스의 평소 심박에서 낼 수 있는 페이스를 구한 값이에요. 경로 비교는 모두 이 기기 안에서 해요. 코스 이름은 출발 지점 동네(약 100m 단위로 반올림한 위치로 한 번 찾아요)나 직접 붙인 이름을 써요.', ref: '' },
 };
 
 // ===== ui_map.js — the route on a real map, coloured by pace like the Fitness app =====
@@ -4266,6 +4481,52 @@ function drawRouteMap(el, r, opts) {
   return map;
 }
 
+// several runs' routes over each other, each in its own colour (thicker underneath, so lines on the same road stay visible)
+function cssColor(c) { const m = /^var\((--[\w-]+)\)$/.exec(String(c)); return m ? (getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || '#3b39d1') : c; }
+function drawRoutesMap(el, runs, colors, opts) {
+  opts = opts || {};
+  const rs = runs.map((r, i) => ({ r, c: cssColor(colors[i % colors.length]), w: [8, 6, 4.4, 3][i] || 3 })).filter(x => x.r.route && x.r.route.la.length > 1);
+  if (!el || !mapsOn() || !rs.length) return null;
+  const key = kakaoKey();
+  if (key && !opts.noKakao && rs.every(x => routeInKorea(x.r.route))) {
+    const holder = { remove() { if (holder.m) holder.m.remove(); holder.dead = true; } };
+    loadKakao(key).then(k => { if (holder.dead || !el.isConnected) return; holder.m = drawKakaoMulti(el, rs, k); })
+      .catch(() => { if (holder.dead || !el.isConnected) return; holder.m = drawRoutesMap(el, runs, colors, { noKakao: true }); });
+    MAPS.add(holder);
+    return holder;
+  }
+  const map = L.map(el, { maxZoom: 20, zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false, tap: false, zoomSnap: 0.25, preferCanvas: true });
+  map.attributionControl.setPrefix(false);
+  if (isDarkUI()) el.classList.add('dark-tiles');
+  addTiles(map, el, 0);
+  const ren = L.canvas({ padding: 0.5 }), dark = isDarkUI(), all = [];
+  for (const x of rs) {
+    const pts = x.r.route.la.map((la, i) => [la, x.r.route.lo[i]]); all.push(...pts);
+    L.polyline(pts, { renderer: ren, color: dark ? '#0b0c10' : '#ffffff', weight: x.w + 3, opacity: 0.85, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(map);
+    L.polyline(pts, { renderer: ren, color: x.c, weight: x.w, opacity: 0.95, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(map);
+  }
+  const p0 = rs[0].r.route; L.circleMarker([p0.la[0], p0.lo[0]], { renderer: ren, radius: 7, color: '#ffffff', weight: 3, fillColor: '#34c759', fillOpacity: 1, interactive: false }).addTo(map);
+  const fit = () => { try { map.invalidateSize(); map.fitBounds(L.latLngBounds(all), { padding: [22, 22], maxZoom: 17 }); } catch (e) { /* map already removed */ } };
+  fit(); setTimeout(fit, 150);
+  if (!opts.noKakao) MAPS.add(map);
+  return map;
+}
+function drawKakaoMulti(el, rs, kakao) {
+  const K = kakao.maps, dark = isDarkUI();
+  el.innerHTML = ''; el.classList.add('kakao-map'); if (dark) el.classList.add('kakao-dark');
+  const p0 = rs[0].r.route, map = new K.Map(el, { center: new K.LatLng(p0.la[0], p0.lo[0]), level: 5, draggable: false, scrollwheel: false, disableDoubleClickZoom: true });
+  map.setZoomable(false);
+  const b = new K.LatLngBounds();
+  for (const x of rs) {
+    const path = x.r.route.la.map((la, i) => new K.LatLng(la, x.r.route.lo[i])); for (const p of path) b.extend(p);
+    new K.Polyline({ map, path, strokeWeight: x.w + 3, strokeColor: dark ? '#0b0c10' : '#ffffff', strokeOpacity: 0.85, strokeStyle: 'solid' });
+    new K.Polyline({ map, path, strokeWeight: x.w, strokeColor: hex(x.c), strokeOpacity: 0.95, strokeStyle: 'solid' });
+  }
+  new K.CustomOverlay({ map, position: new K.LatLng(p0.la[0], p0.lo[0]), content: '<div class="start-mark"></div>', xAnchor: 0.5, yAnchor: 0.5, zIndex: 4 });
+  const fit = () => { try { map.relayout(); map.setBounds(b, 24, 24, 24, 24); } catch (e) { /* removed */ } };
+  fit(); setTimeout(fit, 150);
+  return { remove() { el.innerHTML = ''; } };
+}
 function openMapFull(id) {
   const r = (st.M && st.M.runs.find(x => x.id === id)) || null; if (!r || !mapsOn()) return;
   closeMapFull();
@@ -4854,9 +5115,249 @@ function shoeAlert() {
   return '<button class="sync shoe-alert" data-act="tab" data-v="shoes"><div class="sync-t"><b>' + IC.shoe + esc(s.name) + ' ' + Math.round(x.pct * 100) + '%</b><span>' + (x.pct >= 1 ? '교체 기준을 넘었어요. 새 러닝화로 바꿀 때예요.' : '교체 기준까지 ' + Math.round(x.left) + 'km 남았어요.') + '</span></div>' + IC.chev + '</button>';
 }
 
+// ===== ui_course.js — 같은 코스 (runs on the same path, compared with the weather taken out) and comparing runs the person picks =====
+const RUNCOL = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)'];
+function crs() {
+  const M = st.M; if (!M) return { list: [], byRun: new Map() };
+  if (!M._crs) {
+    let list = [];
+    try { list = findCourses(M.runs); } catch (e) { console.error(e); }
+    const byRun = new Map(); for (const c of list) for (const id of c.ids) byRun.set(id, c);
+    M._crs = { list, byRun };
+  }
+  return M._crs;
+}
+function crsFind(id) { const C = crs(); return C.list.find(c => c.id === id) || C.byRun.get(id) || null; }
+function runById(id) { return (st.M && st.M.runs.find(r => r.id === id)) || null; }
+
+// ---- names: the person's own, or the neighbourhood where the course starts (looked up once, from a point rounded to ~100 m) ----
+function crsNames() { return LS.get('courseNames') || {}; }
+function crsName(c) {
+  const N = crsNames(), cnt = {};
+  for (const id of c.ids) if (N[id]) cnt[N[id]] = (cnt[N[id]] || 0) + 1;
+  const own = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+  if (own) return own;
+  const pl = crsPlace(c), km = kmTxt(c.dist, 1) + 'km';
+  return pl ? (c.loop ? pl + ' ' + km + ' 코스' : pl + ' 출발 ' + km) : km + ' 코스';
+}
+function crsKey(c) { return (Math.round(c.start[0] * 1000) / 1000).toFixed(3) + ',' + (Math.round(c.start[1] * 1000) / 1000).toFixed(3); }
+const CRS_Q = { busy: false, want: [], tried: new Set() };
+function crsPlace(c) {
+  const k = crsKey(c), nm = (LS.get('places') || {})[k];
+  if (nm) return String(nm).split(' ').slice(-1)[0];
+  if (TARGET === 'web' && typeof placeName === 'function' && wxOn() && !CRS_Q.tried.has(k)) { CRS_Q.tried.add(k); CRS_Q.want.push(k); crsPlaceRun(); }
+  return '';
+}
+async function crsPlaceRun() {
+  if (CRS_Q.busy) return; CRS_Q.busy = true;
+  let got = false;
+  try {
+    while (CRS_Q.want.length) {
+      const [la, lo] = CRS_Q.want.shift().split(',').map(Number);
+      const name = await placeName(la, lo).catch(() => null);
+      if (name) got = true;
+      if (CRS_Q.want.length && !kakaoKey()) await new Promise(res => setTimeout(res, 1100)); // OpenStreetMap asks for one request a second
+    }
+  } finally { CRS_Q.busy = false; }
+  if (got && st.M && /^(runs$|course:|cmp:|run:)/.test(st.view)) refreshView();
+}
+function crsRenameSheet(id) {
+  const c = crsFind(id); if (!c) return '';
+  const own = Object.keys(crsNames()).some(k => c.ids.includes(k));
+  return '<h2 style="margin-bottom:6px">코스 이름</h2><p class="small ink2">비워 두면 출발 동네 이름으로 자동으로 붙여요.</p>' +
+    '<form id="crs-form" data-v="' + c.id + '" style="margin-top:12px"><input id="crs-name" type="text" maxlength="24" autocomplete="off" enterkeyhint="done" value="' + esc(own ? crsName(c) : '') + '" placeholder="' + esc(crsName(c)) + '" style="width:100%">' +
+    '<div class="row" style="gap:8px;margin-top:14px"><button type="button" class="btn ghost" data-act="close" style="flex:1">취소</button><button type="submit" class="btn" style="flex:1">저장</button></div></form>';
+}
+function crsRenameSave() {
+  const f = $('#crs-form'); if (!f) return;
+  const c = crsFind(f.dataset.v); if (!c) return closeSheet();
+  const name = String($('#crs-name').value || '').replace(/\s+/g, ' ').trim().slice(0, 24), N = crsNames();
+  for (const id of c.ids) { if (name) N[id] = name; else delete N[id]; }
+  LS.set('courseNames', N); closeSheet(); render(true); toast(name ? '코스 이름을 바꿨어요' : '자동 이름으로 되돌렸어요');
+}
+
+// a small drawing of the route (no map) for lists
+function crsThumb(r, size) {
+  const S = size || 56, rt = r && r.route;
+  if (!rt || rt.la.length < 3) return '<svg class="crs-thumb" viewBox="0 0 ' + S + ' ' + S + '" aria-hidden="true"></svg>';
+  const kx = Math.cos(rt.la[0] * Math.PI / 180), X = rt.lo.map(v => v * kx), Y = rt.la, pad = 7;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < X.length; i++) { if (X[i] < minX) minX = X[i]; if (X[i] > maxX) maxX = X[i]; if (Y[i] < minY) minY = Y[i]; if (Y[i] > maxY) maxY = Y[i]; }
+  const sc = Math.min((S - 2 * pad) / Math.max(1e-9, maxX - minX), (S - 2 * pad) / Math.max(1e-9, maxY - minY));
+  const ox = (S - (maxX - minX) * sc) / 2, oy = (S - (maxY - minY) * sc) / 2, px = i => (ox + (X[i] - minX) * sc).toFixed(1), py = i => (S - oy - (Y[i] - minY) * sc).toFixed(1);
+  const step = Math.max(1, Math.floor(rt.la.length / 150)); let pts = '';
+  for (let i = 0; i < rt.la.length; i += step) pts += px(i) + ',' + py(i) + ' ';
+  pts += px(rt.la.length - 1) + ',' + py(rt.la.length - 1);
+  return '<svg class="crs-thumb" viewBox="0 0 ' + S + ' ' + S + '" aria-hidden="true"><polyline points="' + pts + '" fill="none" style="stroke:var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<circle cx="' + px(0) + '" cy="' + py(0) + '" r="3.2" style="fill:var(--good);stroke:var(--surface-2)" stroke-width="1.5"/></svg>';
+}
+// the course's direction: the pace at one heart rate when there is enough of it, else the weather-adjusted pace
+function crsTrend(c) { const t = c.trendHR || c.trend; return t && Math.abs(t.per30) >= 2 ? t : null; }
+
+// ---------------- 기록 탭: 코스 목록 ----------------
+function coursesHTML() {
+  const C = crs().list;
+  if (!C.length) return '<section class="card" style="margin-top:12px"><div class="empty">아직 같은 코스를 두 번 넘게 달린 기록이 없어요.<br><span class="xs">출발·도착 지점과 지나간 길이 거의 같고 거리 차이가 12% 안인 러닝을 같은 코스로 묶어요.</span></div></section>';
+  let h = '<p class="small ink2" style="margin:12px 2px 6px;display:flex;gap:6px;align-items:center">같은 길을 달린 기록끼리 묶었어요. 순위는 더위·바람 영향을 뺀 기록으로 매겨요. ' + infoBtn('course') + '</p><section class="card" style="padding-block:0">';
+  for (const c of C) {
+    const tr = crsTrend(c);
+    h += '<button class="crs-row" data-act="course" data-v="' + c.id + '">' + crsThumb(runById(c.latest)) + '<div class="main"><div class="l1"><b>' + esc(crsName(c)) + '</b>' + (tr ? '<span class="tr ' + (tr.per30 < 0 ? 'tr-up' : 'tr-down') + '">' + (tr.per30 < 0 ? '빨라지는 중' : '느려지는 중') + '</span>' : '') + '</div>' +
+      '<div class="l2">' + kmTxt(c.dist, 1) + 'km · ' + c.n + '회 · 최근 ' + fmtDayShort(c.lastDay) + '</div>' +
+      '<div class="l2">최고 ' + fmtPace(c.best.adj) + '/km (날씨 보정)</div></div>' + IC.chev + '</button>';
+  }
+  return h + '</section>';
+}
+
+// ---------------- 코스 상세 ----------------
+function cstat(k, v, u, sub) { return '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + (u ? '<small>' + u + '</small>' : '') + '</div>' + (sub ? '<div class="xs muted" style="margin-top:2px">' + sub + '</div>' : '') + '</div>'; }
+function vCourse(id) {
+  const back = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div>';
+  const c = crsFind(id);
+  if (!c) return back + '<div class="card"><div class="empty">코스를 찾을 수 없어요. 분석 기간을 바꾸면 코스가 달라질 수 있어요.</div></div>';
+  const latest = runById(c.latest), last = c.rows[c.rows.length - 1], first = c.rows[0];
+  let h = back + '<div class="page-head"><div><h1 style="font-size:22px">' + esc(crsName(c)) + '</h1><div class="page-sub">' + kmTxt(c.dist, 2) + 'km · ' + c.n + '회 · ' + (c.loop ? '출발한 곳으로 돌아오는 코스' : '출발과 도착이 다른 코스') + '</div></div>' +
+    '<button class="btn small ghost" data-act="crs-rename" data-v="' + c.id + '" aria-label="코스 이름 바꾸기">' + IC.pen + '이름</button></div>';
+  h += '<section class="card"><div class="grid2">' +
+    cstat('최고 기록 <span class="xs muted">날씨 보정</span>', fmtPace(c.best.adj), '/km', fmtDay(c.best.day)) +
+    cstat('가장 빨랐던 날 <span class="xs muted">실제</span>', fmtPace(c.bestRaw.pace), '/km', fmtDay(c.bestRaw.day)) +
+    cstat('최근', fmtPace(last.pace), '/km', '날씨 보정 ' + fmtPace(last.adj) + ' · ' + fmtDayShort(last.day)) +
+    cstat('평균 <span class="xs muted">날씨 보정</span>', fmtPace(mean(c.rows.map(x => x.adj))), '/km', c.n + '회') + '</div></section>';
+  // what changed on this course
+  const notes = [], hp = c.rows.filter(x => x.hrPace), tH = c.trendHR, tA = c.trend;
+  if (tH && Math.abs(tH.per30) >= 1) notes.push({ tone: tH.per30 < 0 ? 'good' : 'warn', text: '같은 심박(' + c.refHR + 'bpm)에서 낼 수 있는 페이스가 최근 ' + tH.days + '일 동안 한 달에 km당 ' + Math.abs(Math.round(tH.per30)) + '초씩 ' + (tH.per30 < 0 ? '빨라지고 있어요. 유산소 체력이 좋아지고 있다는 뜻이에요.' : '느려지고 있어요. 피로가 쌓였거나 컨디션이 떨어졌을 수 있어요.') });
+  if (tA && Math.abs(tA.per30) >= 1) notes.push({ tone: tA.per30 < 0 ? 'good' : 'info', text: '날씨 보정 기록은 한 달에 km당 ' + Math.abs(Math.round(tA.per30)) + '초씩 ' + (tA.per30 < 0 ? '빨라지고' : '느려지고') + ' 있어요. 같은 코스라도 그날 얼마나 힘을 냈는지에 따라 달라져요.' });
+  if (last.rank === 1 && c.n > 1) notes.push({ tone: 'good', text: '가장 최근 러닝이 이 코스 최고 기록이에요(날씨 보정).' });
+  else notes.push({ tone: 'info', text: '최근 기록은 최고 기록보다 날씨 보정 페이스가 km당 ' + Math.round(last.adj - c.best.adj) + '초 느려요. ' + c.n + '번 중 ' + last.rank + '위예요.' });
+  h += '<section class="card"><div class="card-head" style="margin-bottom:2px"><h2>이 코스에서의 변화 ' + infoBtn('course') + '</h2></div>' + notes.map(insRow).join('') +
+    '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">' + (c.best.id !== c.latest ? '<button class="btn small secondary" data-act="cmp-open" data-v="' + c.best.id + ',' + c.latest + '">최고 기록과 최근 기록 비교</button>' : '') +
+    '<button class="btn small secondary" data-act="cmp-start" data-v="course:' + c.id + '">기록 골라 비교</button></div></section>';
+  // trend chart
+  const tabs = [['pace', '페이스'], ['hr', '같은 심박 페이스', hp.length >= 2]].filter(t => t[2] !== false);
+  if (!tabs.find(t => t[0] === st.crsChart)) st.crsChart = 'pace';
+  h += '<section class="card"><div class="card-head"><div class="seg" role="group" aria-label="차트 종류">' + tabs.map(([k, n]) => '<button data-act="cchart" data-v="' + k + '" aria-pressed="' + (st.crsChart === k) + '">' + n + '</button>').join('') + '</div></div><div class="chart" id="c-crs"></div></section>';
+  mount(() => crsChart(c));
+  if (latest && latest.route && mapsOn()) {
+    h += '<section class="card"><div class="card-head"><h2>코스</h2><button class="btn small ghost" data-act="mapfull" data-v="' + latest.id + '">' + IC.expand + '크게 보기</button></div><div class="map" id="map-crs" role="img" aria-label="코스 지도 (최근 러닝의 페이스별 색)"></div>' + paceLegend(latest) + '</section>';
+    mount(() => drawRouteMap($('#map-crs'), latest, { onTap: () => openMapFull(latest.id) }));
+  }
+  // every run on it, newest first
+  h += '<section class="card" style="padding-block:0">' + c.rows.slice().reverse().map(x => crsRunRow(x, c)).join('') + '</section>';
+  return h + cmpBar();
+}
+function crsRunRow(x, c) {
+  const pick = st.cmp.on, on = st.cmp.ids.includes(x.id), [, , dd] = civilFromDays(x.day), [, mm] = civilFromDays(x.day);
+  return '<button class="run-row crs-run' + (pick ? ' pick' : '') + '" data-act="' + (pick ? 'cmp-pick' : 'run') + '" data-v="' + x.id + '"' + (pick ? ' aria-pressed="' + on + '"' : '') + '>' + (pick ? '<span class="pick-dot" aria-hidden="true"></span>' : '') +
+    '<div class="date"><b>' + dd + '</b><span>' + mm + '월</span></div><div class="main"><div class="l1"><span class="num">' + fmtPace(x.pace) + '<small class="xs muted">/km</small></span>' + labelChip(x.label) + (x.rank === 1 ? '<span class="chip" style="background:var(--accent-soft);color:var(--accent)">최고</span>' : '') + '</div>' +
+    '<div class="l2">날씨 보정 ' + fmtPace(x.adj) + (x.hr ? ' · ' + x.hr + ' bpm' : '') + (isNum(x.t) ? ' · ' + Math.round(x.t) + '°' : '') + '</div></div>' +
+    '<div class="te"><b>' + x.rank + '위</b>' + c.n + '회 중</div></button>';
+}
+function crsChart(c) {
+  const el = $('#c-crs'); if (!el) return;
+  const xs = c.rows.map(x => x.start / 86400), off = st.M.off || 0, dayOf = v => Math.floor(v + off / 86400);
+  const xMin = xs[0], xMax = xs[xs.length - 1] > xMin ? xs[xs.length - 1] : xMin + 1;
+  const base = { x: xs, xMin: xMin - (xMax - xMin) * 0.04, xMax: xMax + (xMax - xMin) * 0.04, xTicks: Math.min(5, xs.length), xFmt: v => fmtDayShort(dayOf(v)), height: 190, invert: true, yFmt: fmtPace, forceLegend: true, tipX: (v, i) => fmtDay(c.rows[i].day),
+    tip: i => [].concat(st.crsChart === 'hr' ? [['같은 심박 페이스', c.rows[i].hrPace ? fmtPace(c.rows[i].hrPace) : '–', 'var(--s3)']] : [['날씨 보정', fmtPace(c.rows[i].adj), 'var(--s1)'], ['실제', fmtPace(c.rows[i].pace), 'var(--s2)']]) };
+  if (st.crsChart === 'hr') lineChart(el, Object.assign(base, { label: '같은 심박에서의 페이스', series: [{ name: '심박 ' + c.refHR + 'bpm에서의 페이스 (날씨 보정)', y: c.rows.map(x => x.hrPace || null), color: 'var(--s3)', dots: true, fmt: fmtPace }] }));
+  else lineChart(el, Object.assign(base, { label: '코스 기록 변화', series: [{ name: '날씨 보정 페이스', y: c.rows.map(x => x.adj), color: 'var(--s1)', dots: true, fmt: fmtPace }, { name: '실제 페이스', y: c.rows.map(x => x.pace), color: 'var(--s2)', dotsOnly: true, r: 3.5, fmt: fmtPace }] }));
+}
+
+// ---------------- 러닝 상세: 같은 코스 카드 ----------------
+function courseCard(r) {
+  const c = crs().byRun.get(r.id); if (!c) return '';
+  const sp = courseSpot(c, r.id); if (!sp) return '';
+  const lines = [];
+  if (sp.prev) {
+    const d = Math.round(sp.dPrevRaw), da = Math.round(sp.dPrev), w = x => Math.abs(x) < 2 ? '비슷해요' : 'km당 ' + Math.abs(x) + '초 ' + (x < 0 ? '빨라요' : '느려요');
+    lines.push({ tone: da <= -2 ? 'good' : da >= 4 ? 'warn' : 'info', text: '지난번(' + fmtDayShort(sp.prev.day) + ')보다 페이스가 ' + w(d) + (Math.abs(da - d) >= 2 ? '. 날씨 영향을 빼면 ' + w(da) : '') + '.' });
+  } else lines.push({ tone: 'info', text: '이 코스의 첫 기록이에요. 다음에 같은 길을 달리면 날씨 영향을 빼고 비교해 드려요.' });
+  if (sp.rank === 1 && sp.n > 1) lines.push({ tone: 'good', text: '날씨 영향을 뺀 기록으로 이 코스 최고예요!' });
+  else if (sp.best) lines.push({ tone: 'info', text: '이 코스 최고 기록(' + fmtDayShort(sp.best.day) + ')보다 날씨 보정 페이스가 km당 ' + Math.max(0, Math.round(sp.dBest)) + '초 느려요.' });
+  const btns = (sp.prev ? '<button class="btn small secondary" data-act="cmp-open" data-v="' + sp.prev.id + ',' + r.id + '">지난번과 비교</button>' : '') +
+    (sp.best && sp.rank !== 1 && (!sp.prev || sp.best.id !== sp.prev.id) ? '<button class="btn small secondary" data-act="cmp-open" data-v="' + sp.best.id + ',' + r.id + '">최고 기록과 비교</button>' : '');
+  return '<section class="card"><div class="card-head"><h2>같은 코스 ' + infoBtn('course') + '</h2><span class="xs muted">' + sp.nth + '번째 · ' + sp.n + '번 중 ' + sp.rank + '위</span></div>' +
+    '<button class="crs-link" data-act="course" data-v="' + c.id + '">' + crsThumb(r, 44) + '<span><b>' + esc(crsName(c)) + '</b><span class="xs muted">' + kmTxt(c.dist, 1) + 'km · ' + c.n + '회 · 코스 보기</span></span>' + IC.chev + '</button>' +
+    lines.map(insRow).join('') + (btns ? '<div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">' + btns + '</div>' : '') + '</section>';
+}
+
+// ---------------- 고르기 (비교할 기록) ----------------
+function cmpBar() {
+  if (!st.cmp.on) return '';
+  const n = st.cmp.ids.length;
+  return '<div class="cmp-space" aria-hidden="true"></div><div class="cmp-bar"><div class="cmp-bar-in" role="region" aria-label="비교할 기록 고르기"><span>' + (n ? n + '개 골랐어요' : '비교할 기록을 2~4개 골라 주세요') + '</span>' +
+    '<button class="btn small ghost cmp-x" data-act="cmp-clear">취소</button><button class="btn small" data-act="cmp-go"' + (n >= 2 ? '' : ' disabled') + '>비교하기</button></div></div>';
+}
+function cmpPick(id) {
+  const ids = st.cmp.ids, i = ids.indexOf(id);
+  if (i >= 0) ids.splice(i, 1); else { if (ids.length >= 4) return toast('한 번에 4개까지 비교할 수 있어요'); ids.push(id); }
+  document.querySelectorAll('[data-act="cmp-pick"]').forEach(b => b.setAttribute('aria-pressed', String(ids.includes(b.dataset.v))));
+  const bar = document.querySelector('.cmp-bar'); if (bar) bar.outerHTML = cmpBar();
+}
+
+// ---------------- 기록 비교 ----------------
+function vCompare(ids) {
+  const back = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div>';
+  const runs = [...new Set(ids)].map(runById).filter(Boolean).sort((a, b) => a.start - b.start).slice(0, 4);
+  if (runs.length < 2) return back + '<div class="card"><div class="empty">비교할 기록을 찾을 수 없어요. 분석 기간 밖의 기록일 수 있어요.</div></div>';
+  const c0 = crs().byRun.get(runs[0].id), same = c0 && runs.every(r => c0.ids.includes(r.id)) ? c0 : null;
+  let h = back + '<div class="page-head"><div><h1 style="font-size:22px">기록 비교</h1><div class="page-sub">' + (same ? esc(crsName(same)) + ' · 같은 코스' : runs.length + '개 러닝') + '</div></div></div>';
+  h += '<div class="cmp-legend">' + runs.map((r, i) => '<button class="cmp-chip" data-act="run" data-v="' + r.id + '"><i style="background:' + RUNCOL[i] + '"></i><b>' + fmtDayShort(r.day) + '</b>' + kmTxt(r.dist, 1) + 'km</button>').join('') + '</div>';
+  const ins = cmpInsights(runs);
+  if (ins.length) h += '<section class="card"><div class="card-head" style="margin-bottom:2px"><h2>비교 분석</h2></div>' + ins.map(insRow).join('') + '</section>';
+  // numbers side by side
+  const rows = cmpRows(runs).filter(row => row.vals.some(v => v !== null && v !== undefined && !(typeof v === 'number' && !isNum(v))));
+  const fmt = (k, v) => v === null || v === undefined ? '–' : k === 'dist' ? kmTxt(v, 2) + 'km' : k === 'moving' ? fmtDur(v) : ['pace', 'adj', 'gap', 'hrPace'].includes(k) ? fmtPace(v)
+    : k === 'pw' ? v + 'W' : k === 'up' ? v + 'm' : k === 'wx' ? Math.round(v.t) + '°' : k === 'wxPct' ? (v >= 0.05 ? '+' : '') + v.toFixed(1) + '%' : k === 'teA' ? v.toFixed(1) : k === 'load' ? Math.round(v) : String(v);
+  h += '<section class="card"><div class="card-head"><h2>한눈에 비교</h2></div><div class="tbl-wrap"><table class="tbl cmp"><thead><tr><th></th>' + runs.map((r, i) => '<th><i class="cdot" style="background:' + RUNCOL[i] + '"></i>' + fmtDayShort(r.day) + '</th>').join('') + '</tr></thead><tbody>' +
+    rows.map(row => {
+      const nums = row.vals.map(v => isNum(v) ? v : null), ok = nums.filter(isNum), best = row.better && ok.length > 1 && Math.max(...ok) - Math.min(...ok) > 0.5 ? (row.better === 'low' ? Math.min(...ok) : Math.max(...ok)) : null;
+      return '<tr><td>' + esc(row.name) + (row.k === 'hrPace' && row.ref ? ' <span class="xs">(' + row.ref + 'bpm)</span>' : '') + '</td>' + row.vals.map((v, i) => '<td class="' + (best !== null && nums[i] === best ? 'best' : '') + '">' + esc(fmt(row.k, v)) + (row.k === 'wx' && v && isNum(v.ws) ? '<span class="sub">바람 ' + v.ws.toFixed(1) + '</span>' : '') + '</td>').join('') + '</tr>';
+    }).join('') + '</tbody></table></div><p class="xs muted" style="margin-top:8px">날씨 보정 페이스는 더위·바람 영향을 뺀 값, 같은 심박의 페이스는 고른 기록들의 가운데 심박에서 낼 수 있는 페이스예요(날씨 보정). 시간은 멈춘 시간을 뺀 운동 시간이에요.</p></section>';
+  // over the distance
+  const tabs = [['pace', '페이스'], ['hr', '심박'], ['gap', '앞선 시간']];
+  if (!tabs.find(t => t[0] === st.cmpChart)) st.cmpChart = 'pace';
+  h += '<section class="card"><div class="card-head"><div class="seg" role="group" aria-label="차트 종류">' + tabs.map(([k, n]) => '<button data-act="cmpchart" data-v="' + k + '" aria-pressed="' + (st.cmpChart === k) + '">' + n + '</button>').join('') + '</div></div><div class="chart" id="c-cmp"></div><p class="xs muted" id="c-cmp-note" style="margin-top:6px"></p></section>';
+  mount(() => cmpChart(runs));
+  // km by km
+  const maxK = Math.max(...runs.map(r => r.splits.length));
+  if (maxK > 0 && maxK <= 60) {
+    const sp = (r, k) => { const x = r.splits[k]; return x && x.d >= 300 ? x.t / x.d * 1000 : null; };
+    h += '<section class="card"><div class="card-head"><h2>구간 기록 (1km)</h2></div><div class="tbl-wrap"><table class="tbl cmp"><thead><tr><th>km</th>' + runs.map((r, i) => '<th><i class="cdot" style="background:' + RUNCOL[i] + '"></i>' + fmtDayShort(r.day) + '</th>').join('') + '</tr></thead><tbody>';
+    for (let k = 0; k < maxK; k++) {
+      const vals = runs.map(r => sp(r, k)), full = runs.every(r => r.splits[k] && r.splits[k].d >= 990), ok = vals.filter(isNum), best = full && ok.length > 1 ? Math.min(...ok) : null;
+      h += '<tr><td>' + (k + 1) + '</td>' + vals.map((v, i) => { const x = runs[i].splits[k];
+        return '<td class="' + (best !== null && v === best ? 'best' : '') + '">' + (isNum(v) ? fmtPace(v) + (x.d < 990 ? '<span class="sub">마지막 ' + (x.d / 1000).toFixed(2) + 'km</span>' : x.hr ? '<span class="sub">' + x.hr + '</span>' : '') : '–') + '</td>'; }).join('') + '</tr>';
+    }
+    h += '</tbody></table></div><p class="xs muted" style="margin-top:8px">페이스 아래 작은 숫자는 그 구간의 평균 심박이에요.</p></section>';
+  }
+  if (mapsOn() && runs.some(r => r.route)) {
+    h += '<section class="card"><div class="card-head"><h2>경로</h2></div><div class="map" id="map-cmp" role="img" aria-label="비교하는 러닝들의 경로"></div><div class="legend">' + runs.map((r, i) => '<span><i class="line" style="background:' + RUNCOL[i] + ';height:3px"></i>' + fmtDayShort(r.day) + '</span>').join('') + '</div></section>';
+    mount(() => drawRoutesMap($('#map-cmp'), runs, RUNCOL));
+  }
+  return h;
+}
+function cmpChart(runs) {
+  const el = $('#c-cmp'), note = $('#c-cmp-note'); if (!el) return;
+  const g = cmpGrid(runs), S = runs.map(r => cmpSeries(r, g)), km = g.x.map(d => d / 1000), kmMax = km[km.length - 1] || 1, k = st.cmpChart;
+  const base = { x: km, xMin: 0, xMax: kmMax, xTickVals: niceTicks(0, kmMax, 5).filter(v => v <= kmMax + 1e-9), xFmt: v => (Math.abs(v - Math.round(v)) < 1e-9 ? v.toFixed(0) : v.toFixed(1)) + 'km', tipX: v => v.toFixed(2) + 'km', height: 200, forceLegend: true };
+  const nm = r => fmtDayShort(r.day);
+  if (k === 'pace') {
+    const all = S.flatMap(s => s.pace).filter(isNum), lo = quantile(all, 0.02), hi = quantile(all, 0.98);
+    lineChart(el, Object.assign(base, { invert: true, yMin: Math.max(120, lo - 15), yMax: Math.min(900, hi + 20), yFmt: fmtPace, label: '거리별 페이스 비교', series: S.map((s, i) => ({ name: nm(runs[i]), y: s.pace.map(v => v === null || v < lo - 15 || v > hi + 20 ? null : v), color: RUNCOL[i], fmt: fmtPace, width: 1.8 })) }));
+    if (note) note.textContent = '위로 갈수록 빨라요. 약 150m씩 묶어 부드럽게 그렸어요.';
+  } else if (k === 'hr') {
+    lineChart(el, Object.assign(base, { label: '거리별 심박 비교', series: S.map((s, i) => ({ name: nm(runs[i]), y: s.hr, color: RUNCOL[i], fmt: v => Math.round(v) + ' bpm', width: 1.8 })) }));
+    if (note) note.textContent = '같은 지점에서 심박이 낮을수록 여유 있게 달린 거예요.';
+  } else {
+    const ref = S[0].t;
+    lineChart(el, Object.assign(base, { label: '같은 거리 지점에서 앞선 시간', yFmt: v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v)) + '초', refLines: [{ y: 0, label: nm(runs[0]) + ' 기준' }],
+      series: S.slice(1).map((s, j) => ({ name: nm(runs[j + 1]), y: s.t.map((t, i) => isNum(t) && isNum(ref[i]) ? round(ref[i] - t, 1) : null), color: RUNCOL[j + 1], width: 1.8, fmt: v => v >= 0 ? Math.round(v) + '초 앞섬' : Math.round(-v) + '초 뒤짐' })) }));
+    if (note) note.textContent = '가장 오래된 기록(' + nm(runs[0]) + ')과 같은 거리 지점을 지난 시각을 비교해요. 0보다 위면 앞서 있어요. 멈춘 시간은 빼요.';
+  }
+}
+
 // ===== ui_views.js — the five tabs, run detail, settings, data import, guide =====
 
-const st = { data: null, settings: {}, M: null, view: 'today', back: [], runFilter: 'all', runLimit: 60, runChart: 'pace', mounts: [], scroll: {}, saved: false, dl: null, importing: null, confirmDelete: false, growthRange: 180,
+const st = { data: null, settings: {}, M: null, view: 'today', back: [], runFilter: 'all', runLimit: 60, runChart: 'pace', mounts: [], scroll: {}, saved: false, dl: null, importing: null, confirmDelete: false, growthRange: 180, runsTab: 'list', cmp: { on: false, ids: [], from: null }, crsChart: 'pace', cmpChart: 'pace',
   wx: { runs: {}, fc: null, busy: false, lastTry: 0, err: null, left: 0, ktry: {}, kerr: null }, dirty: false };
 function mount(fn) { st.mounts.push(fn); }
 const isDemo = () => st.data && st.data.source === 'demo';
@@ -4875,9 +5376,20 @@ function vToday() {
   const M = st.M;
   let h = '<div class="page-head"><div><h1>리포트</h1><div class="page-sub">' + fmtDay(M.today) + ' · ' + (M.asOf ? '지난 기간 보기' : freshText()) + '</div></div></div>';
   if (M.asOf) return h + rangeSummaryCard() + latestRunReport() + keyTiles() + insightsCard(); // looking back: today's recovery, plan and weather don't apply
-  if (!isDemo()) h += syncRow() + shoeAlert();
+  if (!isDemo()) h += syncRow() + backupNag() + shoeAlert();
   h += rangeSummaryCard() + latestRunReport() + wxNowCard() + recoveryNextCard() + weekStrip() + keyTiles() + insightsCard();
   return h;
+}
+// once a month: save a backup (the records can come back from the Health app, but shoes, memos and settings live only here)
+function backupNag() {
+  if (TARGET !== 'web' || !st.saved || !st.dl) return '';
+  const now = nowUtc(), last = LS.get('lastBackup'), snooze = LS.get('backupSnooze') || 0;
+  if (now < snooze) return '';
+  const age = isNum(last) ? Math.floor((now - last) / 86400) : null;
+  if (age !== null && age < 30) return '';
+  return '<section class="card nag"><div class="row" style="align-items:flex-start;gap:12px"><span class="ic tone-info" aria-hidden="true">' + IC.info + '</span><div style="min-width:0"><b>' + (age === null ? '아직 백업한 적이 없어요' : '마지막 백업이 ' + age + '일 전이에요') + '</b>' +
+    '<p class="small ink2" style="margin-top:4px">러닝 기록은 건강 앱에서 다시 가져올 수 있지만, 신발·메모·설정은 이 휴대폰에만 있어요. 백업 파일을 파일 앱의 iCloud Drive에 저장해 두세요.</p>' +
+    '<div class="row" style="gap:8px;margin-top:10px"><button class="btn small" data-act="backup">지금 백업하기</button><button class="btn small ghost" data-act="backup-later">다음에</button></div></div></div></section>';
 }
 // the analysis period typed by the person: what happened in it
 function rangeSummaryCard() {
@@ -5017,8 +5529,8 @@ function keyTiles() {
     '<button class="tile" data-act="tab" data-v="training"><div class="stat"><div class="k">' + (M.asOf ? '그 주 거리' : '이번 주 거리') + '</div><div class="v">' + wkKm.toFixed(1) + (M.asOf ? '<small>km</small>' : '<small>/ ' + M.plan.weekKm + ' km</small>') + '</div><div class="s">' + M.runs.filter(r => r.day >= thisMon && r.day <= M.today).length + '회 달림</div></div></button></div>';
 }
 function runRow(r) {
-  const [, , dd] = civilFromDays(r.day);
-  return '<button class="run-row" data-act="run" data-v="' + r.id + '"><div class="date"><b>' + dd + '</b><span>' + WD[weekday(r.day)] + '요일</span></div>' +
+  const [, , dd] = civilFromDays(r.day), pick = st.cmp.on && st.view === 'runs';
+  return '<button class="run-row' + (pick ? ' pick' : '') + '" data-act="' + (pick ? 'cmp-pick' : 'run') + '" data-v="' + r.id + '"' + (pick ? ' aria-pressed="' + st.cmp.ids.includes(r.id) + '"' : '') + '>' + (pick ? '<span class="pick-dot" aria-hidden="true"></span>' : '') + '<div class="date"><b>' + dd + '</b><span>' + WD[weekday(r.day)] + '요일</span></div>' +
     '<div class="main"><div class="l1"><span class="num">' + kmTxt(r.dist, 2) + '<small class="xs muted"> km</small></span>' + labelChip(r.label) + (r.prs && r.prs.length ? '<span class="chip" style="background:var(--accent-soft);color:var(--accent)">기록 경신</span>' : '') + '</div>' +
     '<div class="l2">' + fmtDur(r.dur) + ' · ' + fmtPace(r.moving / Math.max(1, r.dist) * 1000) + '/km' + (r.hrAvg ? ' · ' + Math.round(r.hrAvg) + ' bpm' : '') + (r.indoor ? ' · 실내' : wxRunTag(r)) + '</div>' + (noteFor(r) ? '<div class="l3">' + esc(noteFor(r)) + '</div>' : '') + '</div>' +
     '<div class="te"><b>' + r.teA.toFixed(1) + '</b>훈련 효과</div></button>';
@@ -5037,11 +5549,15 @@ function runPass(r, f) {
     (f === 'quality' && (r.label === 'tempo' || r.label === 'threshold')) || (f === 'fast' && ['vo2', 'anaerobic', 'sprint'].includes(r.label)) || (f === 'pr' && r.prs && r.prs.length);
 }
 function vRuns() {
-  const M = st.M;
+  const M = st.M, nC = crs().list.length, tab = st.runsTab === 'courses' && !st.cmp.on ? 'courses' : 'list';
   const runs = M.runs.filter(r => runPass(r, st.runFilter)).slice().reverse();
-  let h = '<div class="page-head"><div><h1>기록</h1><div class="page-sub">러닝 ' + M.runs.length + '회 · 총 ' + Math.round(sum(M.runs.map(r => r.dist)) / 1000).toLocaleString() + 'km</div></div></div>';
+  let h = '<div class="page-head"><div><h1>기록</h1><div class="page-sub">러닝 ' + M.runs.length + '회 · 총 ' + Math.round(sum(M.runs.map(r => r.dist)) / 1000).toLocaleString() + 'km</div></div>' +
+    (tab === 'list' && M.runs.length >= 2 ? (st.cmp.on ? '<button class="btn small ghost" data-act="cmp-clear">비교 취소</button>' : '<button class="btn small ghost" data-act="cmp-start" data-v="runs">비교</button>') : '') + '</div>';
+  if (!st.cmp.on) h += '<div class="seg runs-tabs" role="group" aria-label="보기"><button data-act="runs-tab" data-v="list" aria-pressed="' + (tab === 'list') + '">전체 기록</button><button data-act="runs-tab" data-v="courses" aria-pressed="' + (tab === 'courses') + '">같은 코스' + (nC ? ' ' + nC : '') + '</button></div>';
+  if (tab === 'courses') return h + coursesHTML();
+  if (st.cmp.on) h += '<p class="small ink2" style="margin:10px 2px 2px">비교할 기록을 2~4개 골라 주세요. 같은 코스가 아니어도 돼요.</p>';
   h += '<div class="filters" role="group" aria-label="운동 종류">' + FILTERS.map(([k, n]) => '<button class="filter" data-act="filter" data-v="' + k + '" aria-pressed="' + (st.runFilter === k) + '">' + n + '</button>').join('') + '</div>';
-  if (!runs.length) return h + '<div class="card"><div class="empty">해당하는 러닝이 없어요.</div></div>';
+  if (!runs.length) return h + '<div class="card"><div class="empty">해당하는 러닝이 없어요.</div></div>' + cmpBar();
   let cur = null, body = '';
   const shown = runs.slice(0, st.runLimit);
   for (const r of shown) {
@@ -5056,7 +5572,7 @@ function vRuns() {
   }
   body += '</section>';
   if (runs.length > st.runLimit) body += '<button class="btn secondary block" data-act="more">이전 기록 더 보기 (' + (runs.length - st.runLimit) + '개)</button>';
-  return h + '<div>' + body + '</div>';
+  return h + '<div>' + body + '</div>' + cmpBar();
 }
 
 // ---------------- 러닝 상세 ----------------
@@ -5078,6 +5594,7 @@ function vRun(id) {
     mini('훈련 부하', r.load, 'load') + mini('회복 시간', r.recH + '시간', 'recovery') + mini('러닝 퍼포먼스', r.perfPct ? r.perfPct + '%' : '–', 'perf') + mini('심박 드리프트', r.decoup !== null ? r.decoup.toFixed(1) + '%' : '–', 'decoup') + '</div></section>';
   const ins = runInsights(r, M);
   h += '<section class="card"><div class="card-head" style="margin-bottom:2px"><h2>코치 메모</h2></div>' + ins.map(insRow).join('') + '</section>';
+  h += courseCard(r);
   h += wxRunCard(r);
   if (r.route && mapsOn()) {
     h += '<section class="card"><div class="card-head"><h2>경로</h2><button class="btn small ghost" data-act="mapfull" data-v="' + r.id + '">' + IC.expand + '크게 보기</button></div>' +
@@ -5516,6 +6033,7 @@ function vImport() {
       (st.saved ? '' : '<p class="xs muted" style="margin-top:8px">이 기기에 저장하지 못했어요. 다음에 열 때 다시 가져오거나 백업 파일을 불러와야 해요.</p>') + '</section>';
   }
   h += '<section class="card"><div class="card-head"><h2>백업</h2></div><p class="small ink2">SOOM의 기록과 설정은 이 기기 안에만 저장돼요. 홈 화면에서 SOOM 아이콘을 지우거나 폰을 바꾸면 사라질 수 있어요. 백업 파일을 저장해 두면 그럴 때 건강 앱 내보내기를 다시 하지 않고도 몇 초 만에 되살릴 수 있어요. 한 달에 한 번쯤 iCloud Drive에 저장해 두세요.</p><div style="display:grid;gap:8px;margin-top:12px">' +
+    (st.dl && real && isNum(LS.get('lastBackup')) ? '<p class="xs muted">마지막 백업: ' + esc(fmtDay(dayOfUtc(LS.get('lastBackup'), localOffsetSec()))) + '</p>' : '') +
     (st.dl && real ? '<button class="btn secondary block" data-act="backup">백업 파일 저장</button>' : (isDemo() ? '' : '<p class="xs muted">이 화면에서는 파일 저장을 지원하지 않아요. claude.ai에서 열면 저장할 수 있어요.</p>')) +
     '<button class="btn ghost block" data-act="pick-backup">백업 파일 불러오기</button></div></section>';
   if (real) {
@@ -5574,7 +6092,7 @@ function planDaySheet(i) {
 
 // ===== ui_app.js — navigation, events, import / backup flows, boot =====
 const TAB_VIEWS = ['today', 'runs', 'training', 'growth', 'recovery', 'shoes'];
-function tabOf(v) { if (TAB_VIEWS.includes(v)) return v; if (v.startsWith('run:')) return st.back.includes('runs') ? 'runs' : st.back[st.back.length - 1] || 'runs'; return null; }
+function tabOf(v) { if (TAB_VIEWS.includes(v)) return v; if (v.startsWith('course:') || v.startsWith('cmp:')) return 'runs'; if (v.startsWith('run:')) return st.back.includes('runs') ? 'runs' : st.back[st.back.length - 1] || 'runs'; return null; }
 
 function render(keepScroll) {
   const v = st.view;
@@ -5596,6 +6114,8 @@ function render(keepScroll) {
     else if (v === 'import') html = vImport();
     else if (v === 'guide') html = vGuide();
     else if (v.startsWith('run:')) html = vRun(v.slice(4));
+    else if (v.startsWith('course:')) html = vCourse(v.slice(7));
+    else if (v.startsWith('cmp:')) html = vCompare(v.slice(4).split(','));
     else html = vToday();
   } catch (e) {
     console.error(e);
@@ -5636,7 +6156,7 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-act]'); if (!a) return;
   const act = a.dataset.act, v = a.dataset.v;
   switch (act) {
-    case 'tab': closeSheet(); go(v); break;
+    case 'tab': closeSheet(); st.cmp = { on: false, ids: [], from: null }; go(v); break;
     case 'go': closeSheet(); go(v); break;
     case 'back': goBack(); break;
     case 'run': closeSheet(); go('run:' + v); break;
@@ -5645,6 +6165,17 @@ document.addEventListener('click', e => {
     case 'close': closeSheet(); break;
     case 'close-bg': if (e.target === a) closeSheet(); break;
     case 'filter': st.runFilter = v; st.runLimit = 60; render(true); break;
+    case 'runs-tab': st.runsTab = v; render(true); break;
+    case 'course': closeSheet(); go('course:' + v); break;
+    case 'crs-rename': openSheet(crsRenameSheet(v)); break;
+    case 'cmp-start': st.cmp = { on: true, ids: [], from: v || 'runs' }; if (v === 'runs') st.runsTab = 'list'; render(true); break;
+    case 'cmp-pick': cmpPick(v); break;
+    case 'cmp-clear': st.cmp = { on: false, ids: [], from: null }; render(true); break;
+    case 'cmp-go': { const ids = st.cmp.ids.slice(); if (ids.length < 2) break; st.cmp = { on: false, ids: [], from: null }; go('cmp:' + ids.join(',')); break; }
+    case 'cmp-open': go('cmp:' + v); break;
+    case 'cchart': st.crsChart = v; document.querySelectorAll('[data-act="cchart"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); { const c = crsFind(st.view.slice(7)); if (c) crsChart(c); } break;
+    case 'cmpchart': st.cmpChart = v; document.querySelectorAll('[data-act="cmpchart"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); { const ids = st.view.slice(4).split(','), runs = [...new Set(ids)].map(runById).filter(Boolean).sort((a, b) => a.start - b.start).slice(0, 4); if (runs.length >= 2) cmpChart(runs); } break;
+    case 'backup-later': LS.set('backupSnooze', Math.round(nowUtc()) + 7 * 86400); render(true); toast('일주일 뒤에 다시 알려 드릴게요'); break;
     case 'more': st.runLimit += 60; render(true); break;
     case 'grange': st.growthRange = +v; render(true); break;
     case 'rchart': {
@@ -5685,7 +6216,7 @@ document.addEventListener('click', e => {
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMapFull(); closeSheet(); } if (e.key === 'Enter' && e.target.id === 'run-memo') { e.preventDefault(); e.target.blur(); } });
-document.addEventListener('submit', e => { if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } else if (e.target.id === 'shoe-form') { e.preventDefault(); saveShoe(); } });
+document.addEventListener('submit', e => { if (e.target.id === 'crs-form') { e.preventDefault(); crsRenameSave(); return; } if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } else if (e.target.id === 'shoe-form') { e.preventDefault(); saveShoe(); } });
 
 function saveSettings() {
   const f = $('#settings-form'); if (!f) return;
@@ -5853,7 +6384,9 @@ async function doBackup() {
   const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), notes: st.notes || {}, wx: st.wx.runs, data: cleanData(st.data) });
   try {
     await st.dl.save({ filename: 'soom-backup-' + dayISO(st.M.today) + '.json', data: new Blob([payload], { type: 'application/json' }) });
+    LS.set('lastBackup', Math.round(nowUtc())); LS.del('backupSnooze');
     toast('백업 파일을 저장했어요');
+    if (st.view === 'today' || st.view === 'import') render(true);
   } catch (err) {
     if (err && err.code === 'declined') return;
     toast(err && err.code === 'rate_limited' ? '잠시 후 다시 시도해 주세요' : '백업 파일을 저장하지 못했어요');

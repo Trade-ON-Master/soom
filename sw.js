@@ -1,5 +1,5 @@
 // Offline start for the home-screen app: keeps the app itself (not your records, not map pictures) in the phone's cache.
-const CACHE = 'run-app-ca18ede16a';
+const CACHE = 'run-app-504ea83a67';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './vendor/leaflet.js', './vendor/leaflet.css',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-32.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
