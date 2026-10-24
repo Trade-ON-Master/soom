@@ -14,7 +14,7 @@
 
 ## 기록 가져오기
 
-- 처음 한 번: 건강 앱 → 프로필 → 모든 건강 데이터 내보내기 → 그 파일(내보내기.zip)을 앱의 **파일 선택**으로 가져와요.
-- 그다음부터: Health Auto Export가 iCloud Drive에 저장한 최신 파일을 **파일 선택**으로 가져와요.
+- 처음 한 번: 건강 앱 → 프로필 → 모든 건강 데이터 내보내기 → **나의 iPhone**에 저장한 파일(내보내기.zip)을 앱의 **파일 선택**으로 가져와요.
+- 그다음부터: Health Auto Export가 iCloud Drive → AutoExport → **SOOM** 폴더에 저장한 최신 파일 두 개(SOOM 운동, SOOM 건강)를 **파일 선택**으로 함께 가져와요.
 
 지도: © OpenStreetMap contributors, © CARTO · 지도 라이브러리: Leaflet (BSD-2-Clause)

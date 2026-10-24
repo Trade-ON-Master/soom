@@ -1,5 +1,5 @@
 // Offline start for the home-screen app: keeps the app itself (not your records, not map pictures) in the phone's cache.
-const CACHE = 'run-app-a083123b74';
+const CACHE = 'run-app-b3b8ca01e7';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './vendor/leaflet.js', './vendor/leaflet.css',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-32.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -9,8 +9,10 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return; // map pictures and fonts always come from the network
-  if (req.mode === 'navigate') { // newest app when online, the saved copy when offline
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return res; })
+  if (url.pathname.endsWith('/version.json')) return; // always asked fresh, to notice a new version
+  if (req.mode === 'navigate') { // newest app when online (checked with the server, not an old copy), the saved copy when offline
+    e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+      .then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); } return res; })
       .catch(() => caches.match('./index.html')));
     return;
   }

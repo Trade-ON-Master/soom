@@ -327,7 +327,14 @@ a.btn { text-decoration: none; }
 .field.inline .hint { grid-column: 1 / -1; }
 .segctl { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
 .segctl button { border: 0; background: transparent; border-radius: 8px; padding: 7px 4px; font-size: 13px; }
-.segctl button[aria-pressed="true"] { background: var(--surface); font-weight: 700; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.segctl button { color: var(--ink-2); }
+.segctl button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.zone-prev { padding: 4px 0 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.zp-base { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.zp-base i { font-style: normal; font-size: 10.5px; color: var(--muted); margin-left: 2px; }
+.zp-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.zp { border-top: 3px solid var(--zc); background: var(--surface-2); border-radius: 0 0 8px 8px; padding: 5px 4px; font-size: 11.5px; text-align: center; font-variant-numeric: tabular-nums; color: var(--ink); }
+.zp b { display: block; font-size: 10.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 .steps-guide { counter-reset: s; display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .steps-guide li { counter-increment: s; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; font-size: 14px; }
 .steps-guide li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: flex; align-items: center; justify-content: center; font-family: var(--font-num); font-size: 16px; }
@@ -2628,13 +2635,16 @@ function racePlan(D, target) {
   return segs.map(([m, p, t]) => { cum += t * k; return { m, pace: p * k, cum }; });
 }
 
+// '3:59:00', '3.59.00', '50:00', '50.00' or just '50' (minutes)
 function parseGoalTime(s) {
   if (!s) return null;
-  const p = String(s).trim().split(':').map(x => parseInt(x, 10));
-  if (p.some(x => !isNum(x))) return null;
-  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
-  if (p.length === 2) return p[0] * 60 + p[1];
-  return null;
+  const p = String(s).trim().replace(/[.,\s]+/g, ':').replace(/^:+|:+$/g, '').split(':').map(x => (/^\d+$/.test(x) ? parseInt(x, 10) : NaN));
+  if (!p.length || p.some(x => !isNum(x))) return null;
+  let t = null;
+  if (p.length === 3 && p[1] < 60 && p[2] < 60) t = p[0] * 3600 + p[1] * 60 + p[2];
+  else if (p.length === 2 && p[1] < 60) t = p[0] * 60 + p[1];
+  else if (p.length === 1) t = p[0] * 60;
+  return t && t >= 600 && t <= 8 * 3600 ? t : null;
 }
 
 function buildInsights(M) {
@@ -2869,7 +2879,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "b3b8ca01e7";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -2886,7 +2896,7 @@ const IC = {
   map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3.5 6.2v13.6L9 17.6l6 2.4 5.5-2.2V4.2L15 6.4 9 4Z"/><path d="M9 4v13.6M15 6.4V20"/></svg>',
   chev: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
 };
-function infoBtn(key) { return '<button class="info" data-act="info" data-v="' + key + '" aria-label="설명 보기">?</button>'; }
+function infoBtn(key) { return '<button type="button" class="info" data-act="info" data-v="' + key + '" aria-label="설명 보기">?</button>'; }
 function chip(text, color) { return '<span class="chip"><i style="background:' + color + '"></i>' + esc(text) + '</span>'; }
 function pill(text, tone) { return '<span class="pill tone-' + tone + '">' + esc(text) + '</span>'; }
 function labelChip(label) { const L = LABELS[label]; return L ? chip(L.name, ZC[L.zone]) : ''; }
@@ -3774,29 +3784,42 @@ function sleepChart(el, nights) {
 }
 
 // ---------------- 설정 ----------------
+function zonePreview() {
+  const f = $('#settings-form'), el = $('#zone-prev'); if (!f || !el) return;
+  const P = st.M.P, num = id => { const x = parseFloat(f.querySelector('#' + id).value); return isNum(x) ? x : null; };
+  const b = f.querySelector('#zoneMethod [aria-pressed="true"]'), method = b ? b.dataset.v : 'hrr';
+  const mx = num('maxHR') || P.auto.max, rs = num('restHR') || P.auto.rest, lt = num('lthr') || P.auto.lthr;
+  const z = makeZones(method, rs, mx, lt);
+  const tag = (v, id) => v + '<i>' + (num(id) ? '직접' : '자동') + '</i>';
+  el.innerHTML = '<div class="zp-base">기준 심박 · 안정 ' + tag(rs, 'restHR') + ' · 최대 ' + tag(mx, 'maxHR') + ' · 역치 ' + tag(lt, 'lthr') + '</div><div class="zp-row">' +
+    z.map((lo, i) => '<span class="zp" style="--zc:' + ZC[i] + '"><b>Z' + (i + 1) + ' ' + ZONE_NAMES[i] + '</b>' + (i === 0 ? (z[1] - 1) + ' 이하' : i === 4 ? lo + ' 이상' : lo + '–' + (z[i + 1] - 1)) + '</span>').join('') + '</div>';
+}
 function vSettings() {
   const S = Object.assign({}, DEFAULT_SETTINGS, st.settings), P = st.M.P;
   const seg = (id, val, opts) => '<div class="segctl" role="group" id="' + id + '">' + opts.map(([v, n]) => '<button type="button" data-act="segset" data-k="' + id + '" data-v="' + v + '" aria-pressed="' + (String(val) === String(v)) + '">' + n + '</button>').join('') + '</div>';
   const fld = (id, label, input, hint, inline) => '<div class="field' + (inline ? ' inline' : '') + '"><label for="' + id + '">' + label + '</label>' + input + (hint ? '<span class="hint">' + hint + '</span>' : '') + '</div>';
-  const num2 = (id, v, ph, min, max) => '<input id="' + id + '" type="number" inputmode="numeric" min="' + min + '" max="' + max + '" value="' + (v || '') + '" placeholder="' + esc(ph) + '">';
+  const num2 = (id, v, ph, min, max, dec) => '<input id="' + id + '" type="number" inputmode="' + (dec ? 'decimal' : 'numeric') + '" step="' + (dec ? '0.1' : '1') + '" min="' + min + '" max="' + max + '" value="' + (v || '') + '" placeholder="' + esc(ph) + '">';
   let h = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div><div class="page-head"><div><h1>설정</h1><div class="page-sub">비워 두면 기록에서 자동으로 계산해요</div></div></div>';
   h += '<form id="settings-form" class="card" novalidate><div class="card-head"><h2>내 정보</h2></div>' +
     fld('sex', '성별', seg('sex', S.sex || '', [['', '자동'], ['male', '남성'], ['female', '여성']]), '심박 기반 부하 계산과 체력 나이에 쓰여요.') +
     fld('birthYear', '출생 연도', num2('birthYear', S.birthYear, P.ageKnown ? '자동: ' + (civilFromDays(st.M.today)[0] - P.age) : '예: 1990', 1920, 2020), '', true) +
-    fld('weight', '체중 (kg)', num2('weight', S.weight, P.weight ? '자동: ' + P.weight : '예: 68', 30, 200), '', true) +
+    fld('weight', '체중 (kg)', num2('weight', S.weight, P.weight ? '자동: ' + P.weight : '예: 68.5', 30, 200, true), '', true) +
     '<div class="card-head" style="margin-top:14px"><h2>심박 ' + infoBtn('zones') + '</h2></div>' +
     fld('maxHR', '최대 심박', num2('maxHR', S.maxHR, '자동: ' + P.auto.max, 120, 230), P.auto.maxSrc === 'data' ? '최근 1년 러닝 기록에서 찾은 값이에요.' : P.auto.maxSrc === 'blend' ? '기록과 나이 공식을 섞은 추정값이에요. 아는 값이 있으면 입력하세요.' : '나이 공식(208 − 0.7 × 나이) 추정값이에요.', true) +
     fld('restHR', '안정 심박', num2('restHR', S.restHR, '자동: ' + P.auto.rest, 30, 100), '애플워치의 최근 30일 안정 심박 중앙값이에요.', true) +
     fld('lthr', '젖산역치 심박', num2('lthr', S.lthr, '자동: ' + P.auto.lthr, 100, 220), P.auto.lthrSrc === 'data' ? '최근 6개월 중 가장 힘들게 달린 20분 평균 심박으로 추정했어요.' : '최근 힘껏 달린 기록이 없어 공식으로 추정했어요. 30분 전력 달리기의 마지막 20분 평균 심박을 넣으면 정확해요.', true) +
-    fld('zoneMethod', '심박 구간 기준', seg('zoneMethod', S.zoneMethod, [['hrr', '여유심박'], ['max', '최대심박'], ['lthr', '젖산역치']]), '여유심박(기본)은 애플워치 자동 구간과 같은 방식이에요.') +
+    fld('zoneMethod', '심박 구간 기준', seg('zoneMethod', S.zoneMethod, [['hrr', '여유심박'], ['max', '최대심박'], ['lthr', '젖산역치']]), '여유심박(기본)은 애플워치 자동 구간과 같은 방식이에요. 바꾸면 아래 구간이 바로 바뀌고, 저장하면 분석에 반영돼요.') +
+    '<div class="zone-prev" id="zone-prev" aria-live="polite"></div>' +
     '<div class="card-head" style="margin-top:14px"><h2>훈련 계획 ' + infoBtn('plan') + '</h2></div>' +
     fld('runsPerWeek', '주당 러닝 횟수', '<select id="runsPerWeek">' + [2, 3, 4, 5, 6, 7].map(v => '<option value="' + v + '"' + (+S.runsPerWeek === v ? ' selected' : '') + '>주 ' + v + '회</option>').join('') + '</select>', '', true) +
     fld('longRunDay', '장거리 요일', '<select id="longRunDay">' + [6, 0, 1, 2, 3, 4, 5].map(v => '<option value="' + v + '"' + (+S.longRunDay === v ? ' selected' : '') + '>' + WD[v] + '요일</option>').join('') + '</select>', '', true) +
     fld('goalDist', '목표 대회', '<select id="goalDist">' + [[0, '없음 (꾸준한 향상)'], [5000, '5K'], [10000, '10K'], [21097.5, '하프 마라톤'], [42195, '풀 마라톤']].map(([v, n]) => '<option value="' + v + '"' + (+S.goalDist === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select>', '', true) +
     fld('goalDate', '대회 날짜', '<input id="goalDate" type="date" value="' + esc(S.goalDate || '') + '">', '', true) +
-    fld('goalTime', '목표 기록', '<input id="goalTime" type="text" inputmode="numbers" placeholder="예: 50:00 또는 3:59:00" value="' + esc(S.goalTime || '') + '">', '비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true) +
-    fld('sleepNeed', '목표 수면 시간', num2('sleepNeed', S.sleepNeed, '8', 5, 11), '수면 점수의 시간 기준이에요.', true) +
-    '<div style="display:grid;gap:8px;margin-top:14px"><button class="btn block" type="submit">저장하고 다시 분석</button><button class="btn ghost block" type="button" data-act="reset-settings">자동값으로 되돌리기</button></div></form>';
+    fld('goalTime', '목표 기록', '<input id="goalTime" type="text" inputmode="decimal" autocomplete="off" placeholder="예: 50.00 또는 3.59.00" value="' + esc(S.goalTime || '') + '">', '시간·분·초를 점(.)이나 쌍점(:)으로 나눠 적어요. 50.00은 50분, 3.59.00은 3시간 59분이에요. 비워 두면 현재 체력의 예상 기록으로 페이스를 잡아요.', true) +
+    fld('sleepNeed', '목표 수면 시간', num2('sleepNeed', S.sleepNeed, '8', 5, 11, true), '수면 점수의 시간 기준이에요. 7.5처럼 적어도 돼요.', true) +
+    '<div style="display:grid;gap:8px;margin-top:14px"><button class="btn block" type="submit" id="btn-save">저장하고 다시 분석</button><button class="btn ghost block" type="button" data-act="reset-settings">자동값으로 되돌리기</button></div>' +
+    (st.savedAt ? '<p class="xs muted" style="margin-top:8px;text-align:center">' + esc(st.savedAt) + '에 저장하고 다시 분석했어요</p>' : '') + '</form>';
+  mount(zonePreview);
   h += '<section class="card"><div class="card-head"><h2>데이터</h2></div><div class="list">' +
     '<button class="li" data-act="go" data-v="import"><div><div class="t">데이터 가져오기 · 백업</div><div class="m">자동 내보내기·건강 앱 파일 불러오기, 백업, 삭제</div></div>' + IC.chev + '</button>' +
     '<button class="li" data-act="go" data-v="guide"><div><div class="t">도움말</div><div class="m">사용법, 지표 설명, 정확도와 한계</div></div>' + IC.chev + '</button></div></section>';
@@ -3993,8 +4016,8 @@ document.addEventListener('click', e => {
       const r = st.M.runs.find(x => 'run:' + x.id === st.view); if (r) runChart(r);
       break;
     }
-    case 'segset': { const g = a.closest('.segctl'); g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === a))); break; }
-    case 'reset-settings': st.settings = {}; LS.set('settings', {}); DB.set('settings', {}); recompute(); render(true); toast('자동값으로 되돌렸어요'); break;
+    case 'segset': { const g = a.closest('.segctl'); g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === a))); zonePreview(); break; }
+    case 'reset-settings': st.settings = {}; st.savedAt = null; LS.set('settings', {}); DB.set('settings', {}); recompute(); render(true); toast('자동값으로 되돌렸어요'); break;
     case 'pick-health': closeSheet(); $('#file-health').click(); break;
     case 'mapfull': openMapFull(v); break;
     case 'mapclose': closeMapFull(); break;
@@ -4022,11 +4045,15 @@ function saveSettings() {
   const P = st.M.P, mx = S.maxHR || P.auto.max, rs = S.restHR || P.auto.rest, lt = S.lthr || P.auto.lthr;
   if (mx <= rs + 40) return toast('최대 심박은 안정 심박보다 40 이상 높아야 해요');
   if (lt >= mx || lt <= rs) return toast('젖산역치 심박은 안정 심박과 최대 심박 사이여야 해요');
-  if (S.goalTime && !parseGoalTime(S.goalTime)) return toast('목표 기록은 50:00 또는 3:59:00 형식으로 적어 주세요');
+  if (S.goalTime && !parseGoalTime(S.goalTime)) return toast('목표 기록은 50.00(50분)이나 3.59.00(3시간 59분)처럼 적어 주세요');
+  if (S.goalTime) S.goalTime = fmtDur(parseGoalTime(S.goalTime));
   if (S.goalDist && !S.goalDate) return toast('대회 날짜도 입력해 주세요');
   st.settings = S; LS.set('settings', S); DB.set('settings', S);
-  recompute(); toast('저장했어요. 새 설정으로 다시 분석했어요'); goBack();
+  recompute();
+  const now = new Date(); st.savedAt = timeKo(now.getTime() / 1000, -now.getTimezoneOffset() * 60);
+  render(true); toast('저장했어요. 새 설정으로 다시 분석했어요');
 }
+document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview(); });
 
 async function doImport(files) {
   files = Array.from(files || []); if (!files.length) return;
@@ -4139,7 +4166,21 @@ async function boot() {
     // keep the stored records from being cleared when the phone runs low on space, and make the app open offline
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* not supported */ }
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+    setTimeout(checkUpdate, 2500);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
   }
+}
+// a home-screen app often comes back without reloading; when a newer SOOM is online, load it (once per version)
+async function checkUpdate() {
+  try {
+    if (st.importing || $('#sheet-root').innerHTML || document.querySelector('.mapfull')) return;
+    const r = await fetch('version.json', { cache: 'no-store' }); if (!r.ok) return;
+    const v = (await r.json()).v; if (!v || v === APP_VERSION) return;
+    let tried = null; try { tried = sessionStorage.getItem('soom:reloadFor'); } catch (e) { /* storage blocked */ }
+    if (tried === v) return;
+    try { sessionStorage.setItem('soom:reloadFor', v); } catch (e) { /* storage blocked */ }
+    location.reload();
+  } catch (e) { /* offline */ }
 }
 boot();
 </script>
