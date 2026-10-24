@@ -101,7 +101,7 @@ p { margin: 0; }
 
 /* bottom tabs */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
-.tabs-in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+.tabs-in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, 1fr); }
 .tab { background: none; border: 0; padding: 8px 0 7px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); }
 .tab svg { width: 22px; height: 22px; }
 .tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
@@ -397,6 +397,33 @@ details.more[open] summary::after { content: "접기"; }
 .mapfull-bottom { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); padding: 0 14px 10px; }
 .mapfull .leaflet-bottom { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 .mapfull .leaflet-top { top: calc(80px + env(safe-area-inset-top, 0px)); }
+
+/* running shoes */
+.shoe-uses { display: flex; flex-wrap: wrap; gap: 6px; }
+.shoe-km { display: flex; align-items: baseline; gap: 6px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.shoe-km b { font-family: var(--font-num); font-size: 40px; font-weight: 700; line-height: 1; }
+.shoe-km span { font-size: 15px; color: var(--ink-2); }
+.shoe-km em { font-style: normal; font-size: 14px; color: var(--muted); }
+.shoe-km i { margin-left: auto; font-style: normal; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 9px; }
+.shoe-bar { position: relative; height: 10px; border-radius: 5px; background: var(--surface-2); margin-top: 8px; overflow: hidden; }
+.shoe-bar b { position: absolute; inset: 0 auto 0 0; border-radius: 5px; }
+.shoe-bar span { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); opacity: .9; }
+.bg-good { background: var(--good); } .bg-warn { background: var(--warn); } .bg-bad { background: var(--bad); }
+.empty-shoe { text-align: center; padding: 12px 6px; display: grid; gap: 6px; justify-items: center; }
+.empty-shoe svg { width: 44px; height: 44px; color: var(--muted); }
+.usechips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.usechip { border: 1px solid var(--line); background: var(--bg); color: var(--ink-2); border-radius: 10px; padding: 8px 4px; font-size: 13px; font-weight: 600; line-height: 1.25; }
+.usechip small { display: block; font-size: 10.5px; font-weight: 400; color: var(--muted); }
+.usechip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.usechip[aria-pressed="true"] small { color: var(--accent-ink); opacity: .85; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 12px 0 2px; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.shoe-alert { width: 100%; text-align: left; margin-top: 10px; cursor: pointer; color: inherit; font: inherit; }
+.shoe-alert b { display: flex; align-items: center; gap: 6px; }
+.shoe-alert b svg { width: 18px; height: 18px; flex: none; }
+.page-head .btn svg { width: 15px; height: 15px; }
+.map-note { position: absolute; z-index: 500; left: 10px; right: 10px; top: 10px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--ink-2); font-size: 12px; border-radius: 10px; padding: 8px 10px; text-align: center; }
+.banner a { color: inherit; }
 </style>
 <div id="app">
   <header class="top">
@@ -419,6 +446,7 @@ details.more[open] summary::after { content: "접기"; }
     <button class="tab" data-act="tab" data-v="training"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20V10M9 20V4M15 20v-7M21 20V8"/></svg>훈련</button>
     <button class="tab" data-act="tab" data-v="growth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>실력</button>
     <button class="tab" data-act="tab" data-v="recovery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/><path d="M3.5 12h4l2-3 3 6 2-3h6"/></svg>회복</button>
+    <button class="tab" data-act="tab" data-v="shoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 17.6V13c0-.6.4-1 1-1.1l3.1-.5 2.6-3.6 2.4 1.5c1.2.8 2.6 1.2 4 1.2h.4l3.6 2c.8.4 1.3 1.3 1.3 2.2v2.9a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1Z"/><path d="M2.8 15.4h18.4"/><path d="m10.4 10.6.9-1.1M12.6 11.5l.8-1.1"/></svg>러닝화</button>
   </div>
 </nav>
 <div id="sheet-root"></div>
@@ -2761,6 +2789,57 @@ function runInsights(r, M) {
   return out;
 }
 
+// ===== core_gear.js — running shoes: mileage added up automatically from the runs, by what each shoe is used for =====
+const SHOE_USES = [['daily', '데일리', '이지·회복'], ['long', '장거리', ''], ['speed', '스피드', '템포·인터벌'], ['race', '대회', '']];
+const SHOE_LIFE = 600; // km, a common replacement point (most shoes: 500–800 km)
+
+// what kind of run this was, in shoe terms
+function runUse(r) {
+  const l = r.label;
+  if (l === 'long') return 'long';
+  if (l === 'tempo' || l === 'threshold' || l === 'vo2' || l === 'anaerobic' || l === 'sprint') return 'speed';
+  return 'daily';
+}
+function shoeActiveOn(s, day) {
+  const a = isoToDay(s.start || ''); if (isNum(a) && day < a) return false;
+  if (s.retired && s.retiredOn) { const b = isoToDay(s.retiredOn); if (isNum(b) && day > b) return false; }
+  return true;
+}
+// the shoe a run counts toward: the one picked for that run, otherwise the best match for the run's kind among shoes in use that day
+function shoeFor(r, gear) {
+  const shoes = (gear && gear.shoes) || [];
+  if (!shoes.length) return null;
+  const pick = gear.pick ? gear.pick[r.id] : undefined;
+  if (pick === 'none') return null;
+  if (pick) { const s = shoes.find(x => x.id === pick); if (s) return s; }
+  return autoShoeFor(r, shoes);
+}
+function autoShoeFor(r, shoes) {
+  const act = shoes.filter(s => shoeActiveOn(s, r.day)); if (!act.length) return null;
+  const use = runUse(r), uses = s => s.uses && s.uses.length ? s.uses : ['daily'];
+  // a shoe meant for this kind of run first, then the one marked "first choice", then the more specialised one, then the newest
+  const fit = s => uses(s).includes(use) ? 3 : use === 'race' && uses(s).includes('speed') ? 2 : uses(s).includes('daily') ? 1 : 0;
+  const score = s => fit(s) * 100 + (s.primary ? 10 : 0) + (5 - uses(s).length);
+  return act.slice().sort((a, b) => score(b) - score(a) || (isoToDay(b.start || '') || 0) - (isoToDay(a.start || '') || 0))[0];
+}
+// totals per shoe: the distance written down when it was added + every run counted toward it since then
+function gearStats(gear, runs, today) {
+  const shoes = (gear && gear.shoes) || [], by = {};
+  for (const s of shoes) by[s.id] = { shoe: s, km: +s.startKm || 0, runs: 0, last: null, recentKm: 0 };
+  for (const r of runs) {
+    const s = shoeFor(r, gear); if (!s || !by[s.id]) continue;
+    const g = by[s.id]; g.km += r.dist / 1000; g.runs++; g.last = Math.max(g.last || 0, r.day);
+    if (r.day > today - 56) g.recentKm += r.dist / 1000;
+  }
+  for (const id in by) {
+    const g = by[id], life = +g.shoe.life || SHOE_LIFE;
+    g.life = life; g.pct = g.km / life; g.left = life - g.km;
+    g.weekly = g.recentKm / 8;
+    g.etaWeeks = !g.shoe.retired && g.left > 0 && g.weekly > 0.5 ? g.left / g.weekly : null;
+  }
+  return by;
+}
+
 // ===== core_demo.js — clearly-labelled example data (an invented runner) so the tool shows its full working state =====
 
 function makeDemoRaw(nowS, off, nDays) {
@@ -2894,7 +2973,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "e585f7d208";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "3be53d8d92";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -2907,6 +2986,8 @@ const IC = {
   bad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5v.5"/></svg>',
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.5"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  shoe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 17.6V13c0-.6.4-1 1-1.1l3.1-.5 2.6-3.6 2.4 1.5c1.2.8 2.6 1.2 4 1.2h.4l3.6 2c.8.4 1.3 1.3 1.3 2.2v2.9a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1Z"/><path d="M2.8 15.4h18.4"/><path d="m10.4 10.6.9-1.1M12.6 11.5l.8-1.1"/></svg>',
   expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>',
   map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3.5 6.2v13.6L9 17.6l6 2.4 5.5-2.2V4.2L15 6.4 9 4Z"/><path d="M9 4v13.6M15 6.4V20"/></svg>',
   chev: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg>',
@@ -3242,9 +3323,28 @@ let FULLMAP = null;
 function mapsOn() { return typeof TARGET !== 'undefined' && TARGET === 'web' && typeof L !== 'undefined'; }
 function clearMaps() { for (const m of MAPS) { try { m.remove(); } catch (e) { /* already gone */ } } MAPS.clear(); }
 function isDarkUI() { const t = document.documentElement.dataset.theme; return t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches); }
-const TILE_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>';
-function tileUrl() {
-  return isDarkUI() ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+// map pictures: CARTO first; if they will not load, OpenStreetMap's own; if neither, say so on the map
+function tileSources() {
+  return [
+    { url: isDarkUI() ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 18, attribution: OSM_ATTR + ' © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>' },
+    { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: '', maxNativeZoom: 19, attribution: OSM_ATTR },
+  ];
+}
+function addTiles(map, el, k) {
+  const src = tileSources()[k];
+  if (!src) { const n = document.createElement('div'); n.className = 'map-note'; n.textContent = '지도 그림을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 열어 주세요.'; el.appendChild(n); return; }
+  const layer = L.tileLayer(src.url, { subdomains: src.subdomains || 'abc', maxNativeZoom: src.maxNativeZoom, maxZoom: 20, attribution: src.attribution }).addTo(map);
+  let ok = 0, bad = 0, asked = 0, done = false, timer = null;
+  layer.on('tileloadstart', () => { asked++; });
+  layer.on('tileload', () => { ok++; });
+  layer.on('tileerror', () => { // pictures fail and none has arrived: try the next source
+    bad++; clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (done || ok > 0 || bad < Math.min(2, asked) || !el.isConnected) return;
+      done = true; try { map.removeLayer(layer); } catch (e) { /* map gone */ } addTiles(map, el, k + 1);
+    }, 400);
+  });
 }
 
 // speed (m/s) at each route point, averaged over about 80 m either side so colours change smoothly along the road
@@ -3287,7 +3387,7 @@ function drawRouteMap(el, r, opts) {
     boxZoom: false, keyboard: full, tap: false, zoomSnap: 0.25, preferCanvas: true, fadeAnimation: true,
   });
   map.attributionControl.setPrefix(false);
-  L.tileLayer(tileUrl(), { subdomains: 'abcd', maxNativeZoom: 18, maxZoom: 20, attribution: TILE_ATTR, crossOrigin: true }).addTo(map);
+  addTiles(map, el, 0);
   const ren = L.canvas({ padding: 0.5 }), dark = isDarkUI();
   const line = { renderer: ren, lineCap: 'round', lineJoin: 'round', interactive: false };
   L.polyline(pts, Object.assign({ color: dark ? '#0b0c10' : '#ffffff', weight: full ? 10 : 8, opacity: dark ? 0.7 : 0.95 }, line)).addTo(map);
@@ -3304,7 +3404,8 @@ function drawRouteMap(el, r, opts) {
   const es = full ? 18 : 16; // finish: a dark square, so it never reads as a pace colour
   L.marker(pts[pts.length - 1], { icon: L.divIcon({ className: 'end-mark', iconSize: [es, es] }), interactive: false, keyboard: false }).addTo(map);
   L.circleMarker(pts[0], dot('#34c759')).addTo(map);
-  map.fitBounds(L.latLngBounds(pts), { padding: full ? [48, 48] : [22, 22], maxZoom: 17 });
+  const fit = () => { try { map.invalidateSize(); map.fitBounds(L.latLngBounds(pts), { padding: full ? [48, 48] : [22, 22], maxZoom: 17 }); } catch (e) { /* map already removed */ } };
+  fit(); setTimeout(fit, 150); // the box may get its final size a moment after the screen is drawn
   if (!full) { MAPS.add(map); if (opts.onTap) el.addEventListener('click', e => { if (!e.target.closest('.leaflet-control-attribution')) opts.onTap(); }); }
   return map;
 }
@@ -3323,6 +3424,112 @@ function openMapFull(id) {
 function closeMapFull() {
   if (FULLMAP) { try { FULLMAP.remove(); } catch (e) { /* gone */ } FULLMAP = null; }
   const w = document.querySelector('.mapfull'); if (w) { w.remove(); document.body.style.overflow = ''; }
+}
+
+// ===== ui_shoes.js — the 러닝화 tab: each shoe's distance toward its replacement point =====
+function gearOf() { return st.gear || (st.gear = { shoes: [], pick: {} }); }
+function saveGear() { const g = gearOf(); LS.set('gear', g); DB.set('gear', g); }
+function useChips(uses) { return (uses && uses.length ? uses : ['daily']).map(u => { const x = SHOE_USES.find(v => v[0] === u); return x ? '<span class="chip">' + x[1] + '</span>' : ''; }).join(''); }
+function shoeTone(p) { return p >= 1 ? 'bad' : p >= 0.8 ? 'warn' : 'good'; }
+
+function vShoes() {
+  const g = gearOf(), M = st.M, stats = gearStats(g, M.runs, M.today);
+  const act = g.shoes.filter(s => !s.retired), old = g.shoes.filter(s => s.retired);
+  let h = '<div class="page-head"><div><h1>러닝화</h1><div class="page-sub">달린 거리를 러닝화별로 더해 교체 시기를 알려 줘요</div></div><button class="btn small" data-act="shoe-add">' + IC.plus + '추가</button></div>';
+  if (!g.shoes.length) {
+    return h + '<section class="card"><div class="empty-shoe">' + IC.shoe + '<p><b>등록한 러닝화가 없어요</b></p><p class="small ink2">신고 있는 러닝화를 추가하면, 러닝마다 종류(이지·장거리·템포 등)를 보고 용도가 맞는 러닝화에 거리를 자동으로 더해요. 지금까지 달린 거리는 처음 추가할 때 한 번만 적으면 돼요.</p>' +
+      '<button class="btn block" style="margin-top:12px" data-act="shoe-add">러닝화 추가</button></div></section>';
+  }
+  for (const s of act) h += shoeCard(s, stats[s.id], M);
+  if (!act.length) h += '<section class="card"><div class="empty small">지금 신는 러닝화가 없어요. 새 러닝화를 추가해 주세요.</div></section>';
+  if (old.length) h += '<section class="card"><details class="more" style="margin-top:0;border-top:0;padding-top:0"><summary>은퇴한 러닝화 ' + old.length + '켤레</summary><div class="list" style="margin-top:6px">' +
+    old.map(s => { const x = stats[s.id]; return '<button class="li" data-act="shoe-edit" data-v="' + s.id + '"><div><div class="t">' + esc(s.name) + '</div><div class="m">' + Math.round(x.km) + 'km · 러닝 ' + x.runs + '회' + (s.retiredOn ? ' · ' + fmtDayDot(isoToDay(s.retiredOn)) + ' 은퇴' : '') + '</div></div>' + IC.chev + '</button>'; }).join('') + '</div></details></section>';
+  h += '<p class="xs muted" style="padding:0 4px">러닝마다 종류를 보고 용도가 맞는 러닝화에 자동으로 더해요. 다른 러닝화를 신었다면 그 러닝의 기록 화면에서 바꿀 수 있어요.</p>';
+  return h;
+}
+function shoeCard(s, x, M) {
+  const tone = shoeTone(x.pct), pct = Math.round(x.pct * 100);
+  let note;
+  if (x.pct >= 1) note = '교체 기준을 ' + Math.round(-x.left) + 'km 넘었어요. 새 러닝화로 바꿀 때예요.';
+  else if (x.pct >= 0.8) note = '교체 기준까지 ' + Math.round(x.left) + 'km 남았어요. 새 러닝화를 준비하세요.';
+  else note = '교체 기준까지 ' + Math.round(x.left) + 'km 남았어요.';
+  if (x.etaWeeks !== null && x.pct < 1) note += ' 지금처럼 신으면 약 ' + (x.etaWeeks < 1.5 ? '1주' : x.etaWeeks < 8 ? Math.round(x.etaWeeks) + '주' : Math.round(x.etaWeeks / 4.3) + '개월') + ' 뒤예요.';
+  return '<section class="card shoe"><div class="card-head" style="margin-bottom:6px"><h2>' + esc(s.name) + (s.primary ? ' <span class="pill tone-ok" style="font-size:11px;padding:2px 7px">주로 신음</span>' : '') + '</h2><button class="link" data-act="shoe-edit" data-v="' + s.id + '">수정</button></div>' +
+    '<div class="shoe-uses">' + useChips(s.uses) + '</div>' +
+    '<div class="shoe-km"><b>' + (x.km >= 100 ? Math.round(x.km) : x.km.toFixed(1)) + '</b><span>km</span><em>/ ' + x.life + 'km</em><i class="tone-' + tone + '">' + pct + '%</i></div>' +
+    '<div class="shoe-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + x.life + '" aria-valuenow="' + Math.round(x.km) + '"><b class="bg-' + tone + '" style="width:' + Math.min(100, pct) + '%"></b><span style="left:80%"></span></div>' +
+    '<p class="small ink2" style="margin-top:8px">' + esc(note) + '</p>' +
+    '<p class="xs muted" style="margin-top:4px">러닝 ' + x.runs + '회' + (x.last ? ' · 마지막 ' + fmtDayShort(x.last) : '') + (x.weekly > 0.5 ? ' · 최근 주 ' + x.weekly.toFixed(1) + 'km' : '') + '</p></section>';
+}
+
+// add / edit sheet
+function shoeSheet(id) {
+  const g = gearOf(), s = id ? g.shoes.find(x => x.id === id) : null;
+  const v = s || { name: '', uses: ['daily'], start: dayISO(st.M.today), startKm: '', life: SHOE_LIFE, primary: false };
+  const chips = SHOE_USES.map(([k, n, d]) => '<button type="button" class="usechip" data-act="shoe-use" data-v="' + k + '" aria-pressed="' + (v.uses || []).includes(k) + '">' + n + (d ? '<small>' + d + '</small>' : '') + '</button>').join('');
+  let h = '<div class="grab"></div><h3>' + (s ? '러닝화 수정' : '러닝화 추가') + '</h3><form id="shoe-form" data-id="' + (s ? s.id : '') + '" novalidate>' +
+    '<div class="field"><label for="shoe-name">이름</label><input id="shoe-name" type="text" maxlength="40" autocomplete="off" placeholder="예: 노바블라스트 5" value="' + esc(v.name) + '"></div>' +
+    '<div class="field"><label>용도 <span class="hint" style="font-weight:400">여러 개 골라도 돼요</span></label><div class="usechips" id="shoe-uses">' + chips + '</div>' +
+    '<span class="hint">러닝 종류를 보고 용도가 맞는 러닝화에 거리를 더해요. 데일리는 이지·회복런, 스피드는 템포·인터벌이에요.</span></div>' +
+    '<div class="field inline"><label for="shoe-start">거리 더하기 시작한 날</label><input id="shoe-start" type="date" value="' + esc(v.start || '') + '"><span class="hint">이날부터 달린 러닝을 이 러닝화에 자동으로 더해요.</span></div>' +
+    '<div class="field inline"><label for="shoe-km">그날까지 달린 거리 (km)</label><input id="shoe-km" type="number" inputmode="decimal" step="0.1" min="0" max="5000" placeholder="0" value="' + (v.startKm || '') + '"><span class="hint">따로 적어 둔 누적 거리가 있으면 넣어요. 새 러닝화면 비워 두세요.</span></div>' +
+    '<div class="field inline"><label for="shoe-life">교체 기준 (km)</label><input id="shoe-life" type="number" inputmode="numeric" step="10" min="100" max="2000" value="' + (v.life || SHOE_LIFE) + '"><span class="hint">보통 500~800km예요. 대회용 경량화는 더 짧기도 해요.</span></div>' +
+    '<label class="check"><input id="shoe-primary" type="checkbox"' + (v.primary ? ' checked' : '') + '> 용도가 같은 러닝화가 여러 켤레면 이걸 먼저 써요</label>' +
+    '<div class="grid2" style="margin-top:14px"><button type="button" class="btn secondary" data-act="close">취소</button><button type="submit" class="btn">저장</button></div>';
+  if (s) h += '<div class="grid2" style="margin-top:8px">' + (s.retired ? '<button type="button" class="btn ghost" data-act="shoe-unretire" data-v="' + s.id + '">다시 신기</button>' : '<button type="button" class="btn ghost" data-act="shoe-retire" data-v="' + s.id + '">은퇴시키기</button>') +
+    '<button type="button" class="btn danger" data-act="shoe-del" data-v="' + s.id + '">삭제</button></div><p class="xs muted" style="margin-top:6px">은퇴시키면 오늘 이후 러닝은 더하지 않고, 기록은 남겨 둬요. 삭제하면 이 러닝화의 기록이 모두 사라져요.</p>';
+  return h + '</form>';
+}
+function saveShoe() {
+  const f = $('#shoe-form'); if (!f) return;
+  const name = f.querySelector('#shoe-name').value.trim();
+  if (!name) return toast('러닝화 이름을 적어 주세요');
+  const uses = Array.from(f.querySelectorAll('#shoe-uses [aria-pressed="true"]')).map(b => b.dataset.v);
+  if (!uses.length) return toast('용도를 하나 이상 골라 주세요');
+  const start = f.querySelector('#shoe-start').value || dayISO(st.M.today);
+  const km = parseFloat(f.querySelector('#shoe-km').value), life = parseFloat(f.querySelector('#shoe-life').value);
+  const g = gearOf(), id = f.dataset.id;
+  const data = { name, uses, start, startKm: isNum(km) && km > 0 ? round(km, 1) : 0, life: isNum(life) && life >= 100 ? Math.round(life) : SHOE_LIFE, primary: f.querySelector('#shoe-primary').checked };
+  if (data.primary) for (const o of g.shoes) if (o.id !== id && o.uses.some(u => uses.includes(u))) o.primary = false;
+  if (id) Object.assign(g.shoes.find(x => x.id === id), data);
+  else g.shoes.push(Object.assign({ id: 's' + Date.now().toString(36), retired: false, retiredOn: '' }, data));
+  saveGear(); closeSheet(); render(true); toast(id ? '러닝화를 고쳤어요' : '러닝화를 추가했어요');
+}
+function shoeAct(act, id) {
+  const g = gearOf(), s = g.shoes.find(x => x.id === id); if (!s) return;
+  if (act === 'retire') { s.retired = true; s.retiredOn = dayISO(st.M.today); toast('\'' + s.name + '\'을(를) 은퇴시켰어요'); }
+  else if (act === 'unretire') { s.retired = false; s.retiredOn = ''; toast('\'' + s.name + '\'을(를) 다시 신어요'); }
+  else if (act === 'del') {
+    const b = document.querySelector('[data-act="shoe-del"]');
+    if (b && !b.dataset.sure) { b.dataset.sure = '1'; b.textContent = '정말 삭제'; return; }
+    g.shoes = g.shoes.filter(x => x.id !== id); for (const k in g.pick) if (g.pick[k] === id) delete g.pick[k]; toast('러닝화를 삭제했어요');
+  }
+  saveGear(); closeSheet(); render(true);
+}
+
+// on a run's page: which shoe it counted toward, changeable
+function shoeRow(r) {
+  const g = gearOf(); if (!g.shoes.length) return '';
+  const auto = autoShoeFor(r, g.shoes), pick = g.pick[r.id] || '';
+  const opts = g.shoes.filter(s => shoeActiveOn(s, r.day) || s.id === pick);
+  return '<section class="card"><div class="card-head" style="margin-bottom:8px"><h2>러닝화</h2></div><div class="field inline" style="padding:0;border:0"><label for="run-shoe" class="small ink2" style="font-weight:400">이 러닝에 신은 러닝화</label>' +
+    '<select id="run-shoe" data-run="' + r.id + '"><option value=""' + (pick ? '' : ' selected') + '>자동' + (auto ? ': ' + esc(auto.name) : '') + '</option>' +
+    opts.map(s => '<option value="' + s.id + '"' + (pick === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('') +
+    '<option value="none"' + (pick === 'none' ? ' selected' : '') + '>어느 러닝화에도 더하지 않기</option></select></div></section>';
+}
+function setRunShoe(runId, v) {
+  const g = gearOf();
+  if (v) g.pick[runId] = v; else delete g.pick[runId];
+  saveGear(); toast(v === 'none' ? '이 러닝은 러닝화 거리에 더하지 않아요' : '러닝화를 바꿨어요');
+}
+// on the report: a shoe close to its replacement point
+function shoeAlert() {
+  const g = gearOf(); if (!g.shoes.length || isDemo()) return '';
+  const stats = gearStats(g, st.M.runs, st.M.today);
+  const due = g.shoes.filter(s => !s.retired && stats[s.id].pct >= 0.85).sort((a, b) => stats[b.id].pct - stats[a.id].pct);
+  if (!due.length) return '';
+  const s = due[0], x = stats[s.id];
+  return '<button class="sync shoe-alert" data-act="tab" data-v="shoes"><div class="sync-t"><b>' + IC.shoe + esc(s.name) + ' ' + Math.round(x.pct * 100) + '%</b><span>' + (x.pct >= 1 ? '교체 기준을 넘었어요. 새 러닝화로 바꿀 때예요.' : '교체 기준까지 ' + Math.round(x.left) + 'km 남았어요.') + '</span></div>' + IC.chev + '</button>';
 }
 
 // ===== ui_views.js — the five tabs, run detail, settings, data import, guide =====
@@ -3344,7 +3551,7 @@ function freshText() {
 function vToday() {
   const M = st.M;
   let h = '<div class="page-head"><div><h1>리포트</h1><div class="page-sub">' + fmtDay(M.today) + ' · ' + freshText() + '</div></div></div>';
-  if (!isDemo()) h += syncRow();
+  if (!isDemo()) h += syncRow() + shoeAlert();
   h += latestRunReport() + recoveryNextCard() + weekStrip() + keyTiles() + insightsCard();
   return h;
 }
@@ -3519,6 +3726,7 @@ function vRun(id) {
     stat('거리', kmTxt(r.dist, 2), 'km') + stat('운동 시간', fmtDur(r.dur), '') + stat('평균 페이스', fmtPace(pace), '/km') + stat('평균 심박', r.hrAvg ? Math.round(r.hrAvg) : '–', 'bpm') + '</div><div class="divider"></div><div class="kv">' +
     mini('경사 보정 페이스', gapPace ? fmtPace(gapPace) : '–', 'gap') + mini('최고 심박', r.hrMax || '–') + mini('상승 고도', r.indoor ? '–' : r.up + 'm') + mini('케이던스', r.cad ? r.cad + ' spm' : '–') +
     mini('파워', r.pw ? r.pw + ' W' : '–') + mini('칼로리', r.kcal ? r.kcal + ' kcal' : '–') + mini('날씨', r.tempC !== null ? Math.round(r.tempC) + '°C' + (r.hum ? ' · ' + r.hum + '%' : '') : '–') + mini('애플 운동 강도', r.effort || r.effortEst ? (r.effort || r.effortEst) + ' / 10' : '–') + '</div></section>';
+  h += shoeRow(r);
   h += '<section class="card"><div class="card-head"><h2>훈련 효과 ' + infoBtn('te') + '</h2>' + labelChip(r.label) + '</div><div class="te">' + teBars('유산소', r.teA) + teBars('무산소', r.teN) + '</div><div class="divider"></div><div class="kv">' +
     mini('훈련 부하', r.load, 'load') + mini('회복 시간', r.recH + '시간', 'recovery') + mini('러닝 퍼포먼스', r.perfPct ? r.perfPct + '%' : '–', 'perf') + mini('심박 드리프트', r.decoup !== null ? r.decoup.toFixed(1) + '%' : '–', 'decoup') + '</div></section>';
   const ins = runInsights(r, M);
@@ -3527,7 +3735,7 @@ function vRun(id) {
     h += '<section class="card"><div class="card-head"><h2>경로</h2><button class="btn small ghost" data-act="mapfull" data-v="' + r.id + '">' + IC.expand + '크게 보기</button></div>' +
       '<div class="map" id="map-run" role="img" aria-label="지도 위 러닝 경로 (페이스별 색)"></div>' + paceLegend(r) + '</section>';
     mount(() => drawRouteMap($('#map-run'), r, { onTap: () => openMapFull(r.id) }));
-  } else if (r.route) h += '<section class="card"><div class="card-head"><h2>경로</h2><a class="btn small ghost" href="' + mapLink(r) + '" target="_blank" rel="noopener noreferrer">' + IC.map + '지도에서 보기</a></div><div class="route">' + routeSVG(r) + '</div><div class="legend"><span><i style="background:var(--z1)"></i>느림</span><span><i style="background:var(--z2)"></i></span><span><i style="background:var(--z3)"></i></span><span><i style="background:var(--z4)"></i></span><span><i style="background:var(--z5)"></i>빠름</span><span><i style="background:var(--good);border-radius:50%"></i>출발</span><span><i style="background:var(--ink)"></i>도착</span></div><p class="xs muted" style="margin-top:8px">이 화면 안에서는 claude.ai 보안 정책 때문에 지도 그림을 불러올 수 없어서 경로만 그려요. 숫자는 1km 지점이에요. <b>지도에서 보기</b>를 누르면 실제 지도 위에 이 경로가 새 창으로 열려요.</p></section>';
+  } else if (r.route) h += '<section class="card"><div class="card-head"><h2>경로</h2>' + (TARGET === 'artifact' ? '<a class="btn small ghost" href="https://trade-on-master.github.io/soom/" target="_blank" rel="noopener">' + IC.map + 'SOOM 앱에서 보기</a>' : '') + '</div><div class="route">' + routeSVG(r) + '</div><div class="legend"><span><i style="background:var(--z1)"></i>느림</span><span><i style="background:var(--z2)"></i></span><span><i style="background:var(--z3)"></i></span><span><i style="background:var(--z4)"></i></span><span><i style="background:var(--z5)"></i>빠름</span><span><i style="background:var(--good);border-radius:50%"></i>출발</span><span><i style="background:var(--ink)"></i>도착</span></div><p class="xs muted" style="margin-top:8px">' + (TARGET === 'artifact' ? '여기(claude.ai)에서는 보안 정책 때문에 지도 그림을 불러올 수 없어서 경로만 그려요. 지도 위 경로는 홈 화면의 <b>SOOM</b> 앱에서 볼 수 있어요.' : '지도를 불러오지 못해 경로만 그렸어요. 인터넷 연결을 확인하고 SOOM을 다시 열어 주세요.') + ' 숫자는 1km 지점이에요.</p></section>';
   const tabs = [['pace', '페이스'], ['hr', '심박'], ['ele', '고도', !!s.e], ['cad', '케이던스', s.c.some(x => x > 0)], ['pw', '파워', !!s.p], ['form', '보폭', !!s.sl]].filter(t => t[2] !== false);
   if (!tabs.find(t => t[0] === st.runChart)) st.runChart = 'pace';
   h += '<section class="card"><div class="card-head"><div class="seg" role="group" aria-label="차트 종류">' + tabs.map(([k, n]) => '<button data-act="rchart" data-v="' + k + '" aria-pressed="' + (st.runChart === k) + '">' + n + '</button>').join('') + '</div></div><div class="chart" id="c-run"></div></section>';
@@ -3969,7 +4177,7 @@ function planDaySheet(i) {
 }
 
 // ===== ui_app.js — navigation, events, import / backup flows, boot =====
-const TAB_VIEWS = ['today', 'runs', 'training', 'growth', 'recovery'];
+const TAB_VIEWS = ['today', 'runs', 'training', 'growth', 'recovery', 'shoes'];
 function tabOf(v) { if (TAB_VIEWS.includes(v)) return v; if (v.startsWith('run:')) return st.back.includes('runs') ? 'runs' : st.back[st.back.length - 1] || 'runs'; return null; }
 
 function render(keepScroll) {
@@ -3987,6 +4195,7 @@ function render(keepScroll) {
     else if (v === 'training') html = vTraining();
     else if (v === 'growth') html = vGrowth();
     else if (v === 'recovery') html = vRecovery();
+    else if (v === 'shoes') html = vShoes();
     else if (v === 'settings') html = vSettings();
     else if (v === 'import') html = vImport();
     else if (v === 'guide') html = vGuide();
@@ -4002,6 +4211,7 @@ function render(keepScroll) {
 }
 function renderBanner() {
   const b = $('#banner');
+  if (TARGET === 'artifact') { b.innerHTML = '<div class="banner"><span><b>이전 버전</b>이에요. 지도와 러닝화 같은 최신 기능은 홈 화면의 SOOM 앱에서 써요.</span><a class="btn small" href="https://trade-on-master.github.io/soom/" target="_blank" rel="noopener">SOOM 열기</a></div>'; return; }
   if (st.data && isDemo() && !['import', 'guide'].includes(st.view) && !st.importing)
     b.innerHTML = '<div class="banner"><span><b>예시 데이터</b>를 보여주고 있어요. 내 애플워치 기록을 가져오면 바로 내 분석으로 바뀌어요.</span><button class="btn small" data-act="go" data-v="import">가져오기</button></div>';
   else b.innerHTML = '';
@@ -4049,6 +4259,12 @@ document.addEventListener('click', e => {
     case 'reset-settings': st.settings = {}; st.savedAt = null; LS.set('settings', {}); DB.set('settings', {}); recompute(); render(true); toast('자동값으로 되돌렸어요'); break;
     case 'pick-health': closeSheet(); $('#file-health').click(); break;
     case 'mapfull': openMapFull(v); break;
+    case 'shoe-add': openSheet(shoeSheet()); break;
+    case 'shoe-edit': openSheet(shoeSheet(v)); break;
+    case 'shoe-use': a.setAttribute('aria-pressed', String(a.getAttribute('aria-pressed') !== 'true')); break;
+    case 'shoe-retire': shoeAct('retire', v); break;
+    case 'shoe-unretire': shoeAct('unretire', v); break;
+    case 'shoe-del': shoeAct('del', v); break;
     case 'cleardate': { const d = $('#goalDate'); if (d) d.value = ''; a.hidden = true; break; }
     case 'mapclose': closeMapFull(); break;
     case 'howto': openSheet(howtoSheet()); break;
@@ -4060,7 +4276,7 @@ document.addEventListener('click', e => {
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMapFull(); closeSheet(); } });
-document.addEventListener('submit', e => { if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } });
+document.addEventListener('submit', e => { if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } else if (e.target.id === 'shoe-form') { e.preventDefault(); saveShoe(); } });
 
 function saveSettings() {
   const f = $('#settings-form'); if (!f) return;
@@ -4088,6 +4304,7 @@ function saveSettings() {
 document.addEventListener('change', e => {
   if (e.target.id === 'goalDist') { const f = $('#settings-form'); if (f) f.dataset.goal = +e.target.value > 0 ? 1 : 0; }
   if (e.target.id === 'goalDate') { const b = document.querySelector('[data-act="cleardate"]'); if (b) b.hidden = !e.target.value; }
+  if (e.target.id === 'run-shoe') setRunShoe(e.target.dataset.run, e.target.value);
 });
 document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview(); });
 // tidy the goal time when leaving the box: '35900' or '3.59.00' becomes '3:59:00'
@@ -4146,6 +4363,7 @@ $('#file-backup').addEventListener('change', async e => {
     if (!data || !Array.isArray(data.runs) || !data.days) throw new Error('format');
     st.data = data;
     if (obj.settings) { st.settings = obj.settings; LS.set('settings', st.settings); DB.set('settings', st.settings); }
+    if (obj.gear && Array.isArray(obj.gear.shoes)) { st.gear = Object.assign({ shoes: [], pick: {} }, obj.gear); saveGear(); }
     st.saved = await DB.set('data', cleanData(data));
     recompute(); st.importError = null; st.back = []; st.view = 'today'; render();
     toast('백업에서 러닝 ' + data.runs.length + '회를 복원했어요');
@@ -4169,7 +4387,7 @@ async function webSave({ filename, data }) {
 }
 async function doBackup() {
   if (!st.dl) { toast('이 화면에서는 파일 저장을 지원하지 않아요'); return; }
-  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, data: cleanData(st.data) });
+  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), data: cleanData(st.data) });
   try {
     await st.dl.save({ filename: 'soom-backup-' + dayISO(st.M.today) + '.json', data: new Blob([payload], { type: 'application/json' }) });
     toast('백업 파일을 저장했어요');
@@ -4179,7 +4397,7 @@ async function doBackup() {
   }
 }
 async function doDelete() {
-  await DB.del('data'); await DB.del('settings'); LS.del('settings'); LS.del('newIds'); st.newIds = [];
+  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); st.newIds = []; st.gear = { shoes: [], pick: {} };
   st.settings = {}; st.saved = false; st.confirmDelete = false;
   st.data = await makeDemoData(); recompute();
   st.back = []; st.view = 'today'; st.scroll = {}; render(); toast('모든 데이터를 지웠어요');
@@ -4192,6 +4410,8 @@ async function boot() {
   st.lastW = window.innerWidth;
   st.settings = LS.get('settings') || (await DB.get('settings')) || {};
   st.newIds = LS.get('newIds') || [];
+  st.gear = (await DB.get('gear')) || LS.get('gear') || { shoes: [], pick: {} };
+  if (!st.gear.pick) st.gear.pick = {};
   const saved = await DB.get('data');
   if (saved && Array.isArray(saved.runs) && saved.runs.length) { st.data = saved; st.saved = true; }
   else st.data = await makeDemoData();
