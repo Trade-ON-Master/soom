@@ -3820,13 +3820,13 @@ function haeSetupHTML() {
     '<p class="xs muted" style="margin-top:10px">아이폰 잠금이 풀려 있을 때만 저장돼요. 잠긴 아이폰에서는 애플이 건강 데이터를 막기 때문이에요. 설정 → 일반 → <b>백그라운드 앱 새로 고침</b>을 켜 두세요. 저전력 모드에서는 늦어질 수 있어요. 앱 메뉴가 한국어로 보이면 같은 뜻의 항목을 고르면 돼요.</p>';
 }
 function shortcutHTML() {
-  return '<p class="small ink2" style="margin-top:8px">자동 저장은 정해진 간격으로 돌아가요. <b>단축어</b> 자동화를 더하면 달리기를 끝낸 직후나 매일 정한 시각에 바로 저장돼요.</p>' +
+  return '<p class="small ink2" style="margin-top:8px">자동 저장은 정해진 간격으로 돌아가요. <b>단축어</b> 자동화를 더하면 달리기를 끝낸 직후와 매일 아침 정한 시각에 바로 저장돼요.</p>' +
     '<ol class="steps-guide" style="margin-top:12px">' +
-    '<li><span><b>단축어</b> 앱 → <b>단축어</b> 탭 → <b>+</b> → 동작 검색에 <b>Auto Export</b>를 입력하고 <b>Run Automation</b>을 추가해 <b>SOOM 운동</b>을 골라요. 같은 동작을 한 번 더 추가해 <b>SOOM 건강</b>도 골라요. 단축어 이름은 <b>SOOM 저장</b>으로 해요.</span></li>' +
-    '<li><span><b>자동화</b> 탭 → <b>새로운 자동화</b> → <b>Apple Watch 운동</b>을 고르고, 운동이 <b>종료될 때</b> · 종류는 <b>달리기</b>로 정해요.</span></li>' +
-    '<li><span><b>실행 전 확인</b>을 고르고, 실행할 단축어로 <b>SOOM 저장</b>을 지정해요.</span></li>' +
-    '<li><span>원하면 <b>특정 시간</b>(예: 매일 오전 8시) 자동화도 같은 방법으로 만들어요. 밤사이 수면·HRV 기록이 아침에 바로 저장돼요.</span></li></ol>' +
-    '<p class="xs muted" style="margin-top:10px">달리기가 끝나면 아이폰에 알림이 떠요. 잠금을 풀고 알림을 누르면 저장돼요. 잠긴 상태에서는 건강 데이터를 읽을 수 없어서 <b>즉시 실행</b>보다 <b>실행 전 확인</b>이 확실해요.</p>';
+    '<li><span><b>단축어</b> 앱 → <b>자동화</b> 탭 → <b>+</b> → 운동을 골라 <b>달리기</b> 운동이 <b>종료될 때</b>로 정해요.</span></li>' +
+    '<li><span><b>실행 전에 확인</b>을 켜요. 잠긴 아이폰에서는 건강 데이터를 읽을 수 없어서, 알림을 눌러 실행하는 쪽이 확실해요.</span></li>' +
+    '<li><span>동작 추가에서 <b>Auto Export</b>를 검색해 <b>사용자 지정 자동화 실행</b>을 두 번 넣고, 각각 <b>SOOM 운동</b>과 <b>SOOM 건강</b>을 골라요.</span></li>' +
+    '<li><span>같은 방법으로 <b>특정 시간</b> 자동화를 하나 더 만들어요. 시간은 <b>오전 8:00</b>, 반복은 <b>매일</b>, <b>실행 전에 확인</b>을 켜고 같은 동작 두 개를 넣어요. 밤사이 수면·HRV 기록이 아침에 저장돼요.</span></li></ol>' +
+    '<p class="xs muted" style="margin-top:10px">실행되면 Health Auto Export가 이번 주 파일을 새 내용으로 덮어써요. 파일은 폴더마다 일주일에 하나씩 생기니, SOOM에서는 가장 최근 파일만 고르면 돼요. 이미 가져온 기록은 두 번 들어가지 않아요.</p>';
 }
 function fullExportHTML() {
   return '<p class="small ink2" style="margin-top:8px">자동 내보내기 파일에는 최근 기록만 들어 있어요. 그동안 쌓인 기록 전체는 건강 앱에서 처음 한 번만 가져오면 돼요.</p><ol class="steps-guide" style="margin-top:12px">' +
