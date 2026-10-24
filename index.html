@@ -2071,6 +2071,7 @@ function runWeather(r, om) {
   return {
     t: round(t, 1), rh: isNum(rh) ? Math.round(rh) : null, dp: isNum(dp) ? round(dp, 1) : null, at: isNum(ws) ? round(feelsLike(t, rh, ws), 1) : null,
     ws, wd, wg: om ? om.wg : null, pr: om ? om.pr : null, wc: om ? om.wc : null, om: !!om, apple: isNum(r.tempC),
+    kma: om && (om.src === 'kma' || om.src === 'kman') ? { src: om.src, sn: om.sn || null, km: isNum(om.km) ? om.km : null, sky: om.sky || null } : null,
     heat: round(heat, 2), wind: wE.pct, head: wE.head, tail: wE.tail, tot: round(tot, 2),
   };
 }
@@ -2415,6 +2416,94 @@ function kmaObsMerge(fc, items, now) {
   }
   fc.kmaObs = { t, temp: o.T1H, at: Math.round(now || 0) };
   return true;
+}
+// ---------- past runs in Korea: 기상청 observations ----------
+// 종관기상관측(ASOS) stations: 지점번호, 이름, 위도, 경도 (기상청 지점정보). A past run uses the nearest one within 25 km.
+const ASOS = [
+  [90, '속초', 38.2509, 128.5647], [93, '북춘천', 37.9474, 127.7544], [95, '철원', 38.1479, 127.3042], [98, '동두천', 37.9019, 127.0607],
+  [99, '파주', 37.8859, 126.7665], [100, '대관령', 37.6771, 128.7183], [101, '춘천', 37.9026, 127.7357], [102, '백령도', 37.9661, 124.6305],
+  [104, '북강릉', 37.8046, 128.8554], [105, '강릉', 37.7515, 128.8910], [106, '동해', 37.5071, 129.1243], [108, '서울', 37.5714, 126.9658],
+  [112, '인천', 37.4777, 126.6249], [114, '원주', 37.3375, 127.9466], [115, '울릉도', 37.4813, 130.8986], [119, '수원', 37.2723, 126.9853],
+  [121, '영월', 37.1813, 128.4574], [127, '충주', 36.9705, 127.9525], [129, '서산', 36.7766, 126.4939], [130, '울진', 36.9918, 129.4128],
+  [131, '청주', 36.6392, 127.4407], [133, '대전', 36.3720, 127.3721], [135, '추풍령', 36.2202, 127.9946], [136, '안동', 36.5729, 128.7073],
+  [137, '상주', 36.4084, 128.1574], [138, '포항', 36.0320, 129.3800], [140, '군산', 36.0053, 126.7614], [143, '대구', 35.8780, 128.6530],
+  [146, '전주', 35.8408, 127.1172], [152, '울산', 35.5601, 129.3201], [155, '창원', 35.1702, 128.5729], [156, '광주', 35.1729, 126.8916],
+  [159, '부산', 35.1047, 129.0320], [162, '통영', 34.8455, 128.4356], [165, '목포', 34.8169, 126.3812], [168, '여수', 34.7393, 127.7406],
+  [169, '흑산도', 34.6872, 125.4510], [170, '완도', 34.3959, 126.7018], [172, '고창', 35.3482, 126.5990], [174, '순천', 35.0204, 127.3694],
+  [177, '홍성', 36.6576, 126.6878], [184, '제주', 33.5141, 126.5297], [185, '고산', 33.2938, 126.1628], [188, '성산', 33.3868, 126.8802],
+  [189, '서귀포', 33.2461, 126.5653], [192, '진주', 35.1638, 128.0400], [201, '강화', 37.7074, 126.4463], [202, '양평', 37.4886, 127.4945],
+  [203, '이천', 37.2640, 127.4842], [211, '인제', 38.0599, 128.1671], [212, '홍천', 37.6836, 127.8804], [216, '태백', 37.1703, 128.9893],
+  [217, '정선군', 37.3807, 128.6461], [221, '제천', 37.1593, 128.1943], [226, '보은', 36.4876, 127.7341], [232, '천안', 36.7624, 127.2927],
+  [235, '보령', 36.3272, 126.5574], [236, '부여', 36.2724, 126.9208], [238, '금산', 36.1056, 127.4818], [239, '세종', 36.4800, 127.2440],
+  [243, '부안', 35.7295, 126.7166], [244, '임실', 35.6122, 127.2856], [245, '정읍', 35.5632, 126.8660], [247, '남원', 35.4213, 127.3965],
+  [248, '장수', 35.6570, 127.5203], [251, '고창군', 35.4266, 126.6970], [252, '영광군', 35.2834, 126.4775], [253, '김해시', 35.2299, 128.8908],
+  [254, '순창군', 35.3713, 127.1286], [255, '북창원', 35.2265, 128.6726], [257, '양산시', 35.3074, 129.0201], [258, '보성군', 34.7633, 127.2123],
+  [259, '강진군', 34.6265, 126.7642], [260, '장흥', 34.6888, 126.9195], [261, '해남', 34.5534, 126.5689], [262, '고흥', 34.6183, 127.2757],
+  [263, '의령군', 35.3226, 128.2880], [264, '함양군', 35.5112, 127.7453], [266, '광양시', 34.9433, 127.6914], [268, '진도군', 34.4726, 126.3239],
+  [271, '봉화', 36.9436, 128.9145], [272, '영주', 36.8719, 128.5170], [273, '문경', 36.6273, 128.1488], [276, '청송군', 36.4351, 129.0401],
+  [277, '영덕', 36.5333, 129.4093], [278, '의성', 36.3561, 128.6886], [279, '구미', 36.1306, 128.3206], [281, '영천', 35.9774, 128.9514],
+  [283, '경주시', 35.8174, 129.2009], [284, '거창', 35.6674, 127.9099], [285, '합천', 35.5650, 128.1699], [288, '밀양', 35.4915, 128.7441],
+  [289, '산청', 35.4130, 127.8791], [294, '거제', 34.8882, 128.6046], [295, '남해', 34.8166, 127.9264], [296, '북부산', 35.2296, 129.0051]];
+const ASOS_KM = 25;
+function asosNear(lat, lon) {
+  if (!isNum(lat) || !isNum(lon)) return null;
+  let best = null;
+  for (const s of ASOS) { const km = haversine(lat, lon, s[2], s[3]) / 1000; if (!best || km < best.km) best = { id: s[0], name: s[1], km }; }
+  return best && best.km <= ASOS_KM ? { id: best.id, name: best.name, km: round(best.km, 1) } : null;
+}
+// ASOS hourly rows (지상 시간자료) → the hourly arrays wxForRun reads; rain is the total of the hour before each time, as with Open-Meteo
+function asosHours(items) {
+  const num = v => { if (v === '' || v === null || v === undefined) return null; const x = parseFloat(v); return isNum(x) ? x : null; };
+  const rows = [];
+  for (const it of items || []) {
+    const m = it && /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/.exec(String(it.tm || '')); if (!m) continue;
+    const ta = num(it.ta); if (ta === null || ta < -60 || ta > 60) continue; // no temperature: hour missing
+    rows.push({ t: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) / 1000 - KST, ta, hm: num(it.hm), td: num(it.td), rn: num(it.rn), ws: num(it.ws), wd: num(it.wd), cl: num(it.dc10Tca), nm: it.stnNm });
+  }
+  rows.sort((a, b) => a.t - b.t);
+  const H = { t: [], temp: [], rh: [], dp: [], pr: [], ws: [], wd: [], wg: [], wc: [], name: rows.length && rows[0].nm ? String(rows[0].nm) : null };
+  for (const r of rows) {
+    const rh = isNum(r.hm) && r.hm >= 0 && r.hm <= 100 ? r.hm : null, rn = isNum(r.rn) && r.rn > 0 ? r.rn : 0; // an empty rain value means no rain
+    const ws = isNum(r.ws) && r.ws >= 0 && r.ws < 80 ? r.ws : null;
+    H.t.push(r.t); H.temp.push(r.ta); H.rh.push(rh); H.pr.push(rn); H.ws.push(ws); H.wg.push(null);
+    H.dp.push(isNum(r.td) && r.td > -80 && r.td <= r.ta + 0.5 ? r.td : isNum(rh) ? round(dewPoint(r.ta, rh), 1) : null);
+    H.wd.push(ws && isNum(r.wd) && r.wd >= 0 && r.wd <= 360 ? r.wd : null);
+    // the sky: rain or snow as measured; otherwise the total cloud amount (0–10), which not every station reports
+    H.wc.push(rn > 0 ? (r.ta <= 0.5 ? 73 : kmaCode(4, 1, rn)) : isNum(r.cl) && r.cl >= 0 && r.cl <= 10 ? (r.cl <= 2 ? 0 : r.cl <= 5 ? 1 : r.cl <= 8 ? 2 : 3) : null);
+  }
+  return H;
+}
+// 초단기실황 answers for single hours (the 5 km grid of the run's start) → hourly arrays
+function kmaObsHours(answers) {
+  const rows = [];
+  for (const items of answers || []) {
+    const o = {}; let t = null;
+    for (const it of items || []) { if (!it || !it.category) continue; o[it.category] = parseFloat(it.obsrValue); if (t === null && it.baseDate) t = kmaTime(it.baseDate, it.baseTime); }
+    if (t === null || !isNum(o.T1H) || o.T1H < -60 || o.T1H > 60) continue;
+    rows.push({ t, o });
+  }
+  rows.sort((a, b) => a.t - b.t);
+  const H = { t: [], temp: [], rh: [], dp: [], pr: [], ws: [], wd: [], wg: [], wc: [] };
+  for (const { t, o } of rows) {
+    const rh = isNum(o.REH) && o.REH >= 0 && o.REH <= 100 ? o.REH : null, rn = isNum(o.RN1) && o.RN1 > 0 ? o.RN1 : 0, ws = isNum(o.WSD) && o.WSD >= 0 && o.WSD < 80 ? o.WSD : null;
+    H.t.push(t); H.temp.push(o.T1H); H.rh.push(rh); H.dp.push(isNum(rh) ? round(dewPoint(o.T1H, rh), 1) : null); H.pr.push(rn);
+    H.ws.push(ws); H.wd.push(ws && isNum(o.VEC) && o.VEC >= 0 && o.VEC <= 360 ? o.VEC : null); H.wg.push(null);
+    H.wc.push(isNum(o.PTY) && o.PTY > 0 ? kmaCode(4, o.PTY, rn) : null); // no cloud amount in 실황
+  }
+  return H;
+}
+// one past run's weather from KMA hours. What KMA does not give (gusts; the sky where no clouds are reported) comes from the
+// Open-Meteo values the run had: gusts keep that gust-to-wind ratio, and a forecast shower becomes overcast when KMA measured no rain.
+function kmaRunWx(H, r, prev, meta) {
+  const w = wxForRun(H, r.start, r.end); if (!w) return null;
+  const p = prev && !prev.none ? prev : null;
+  const g = p && isNum(p.wg) && isNum(p.ws) && p.ws >= 1 ? clamp(p.wg / p.ws, 1.2, 2.5) : 1.6;
+  w.wg = isNum(w.ws) ? round(w.ws * g, 1) : null;
+  let sky = 'k';
+  if (!isNum(w.wc)) {
+    if (p && isNum(p.wc)) { sky = 'o'; w.wc = wcRank(p.wc) >= 5 && wcRank(p.wc) <= 8 ? 3 : p.wc; } else sky = null;
+  }
+  return Object.assign(w, { src: meta.src, sky, at: meta.at }, meta.stn ? { stn: meta.stn, sn: meta.sn, km: meta.km } : {});
 }
 // AirKorea: measured PM now (the station named like the district, or the city's average) and forecast grades by day
 const AIR_GRADE = { '좋음': 0, '보통': 1, '나쁨': 2, '매우나쁨': 3 };
@@ -3674,7 +3763,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "fb4f100cd3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "ca18ede16a"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -4015,7 +4104,7 @@ const INFO = {
   loadRange: { t: '주간 권장 부하', b: '체력을 늘리면서도 무리하지 않는 이번 주(최근 7일) 부하 범위예요. 초록 띠 안에 있으면 좋아요.', how: '기초 체력(42일 평균 하루 부하) × 7일의 100~130%.', ref: '코로스 \'권장 7일 부하\'' },
   calendar: { t: '훈련 캘린더', b: '최근 12주 동안 달린 날을 보여줘요. 색이 진할수록 그날 부하가 컸어요.', how: '', ref: '' },
   power: { t: '러닝 파워', b: '달리는 데 쓰는 힘(와트)이에요. 애플워치 시리즈 6 이후에서 기록돼요.', how: '', ref: '' },
-  wx: { t: '날씨 영향 보정', b: '더위와 바람은 같은 노력에서도 기록을 느리게 해요. SOOM은 러닝마다 날씨 영향(%)을 계산해서, 러닝 VO2max·레이스 예측·러닝 퍼포먼스·유산소 효율을 날씨 영향을 뺀 값으로 계산해요. 그래서 한여름에 기록이 느려져도 체력이 떨어진 것처럼 보이지 않아요. 훈련 계획에도 예보를 반영해, 더운 날은 목표 페이스를 늦추고, 비·뇌우·강풍·미세먼지가 심한 날의 핵심 훈련은 날씨 좋은 날과 바꾸도록 추천해요.', how: '더위: 기온(°F)과 이슬점(°F)을 더한 값으로 느려지는 비율을 구하는 해들리(Hadley) 표를 써요. 합이 100 이하면 0%, 130이면 약 2%, 150이면 약 4.5%, 170이면 약 8%예요. 바람: 경로의 구간마다 달린 방향과 바람 방향으로 맞바람·뒷바람 세기를 구하고, 공기 저항(초속 4m로 달릴 때 전체 에너지의 약 3%)이 얼마나 늘거나 줄었는지 계산해요. 기온·습도는 애플워치가 운동과 함께 저장한 값을 먼저 쓰고, 바람·비·하늘 상태는 Open-Meteo(무료 날씨 서비스)에서 받아요.', ref: '가민 VO2 Max의 더위·습도 보정' },
+  wx: { t: '날씨 영향 보정', b: '더위와 바람은 같은 노력에서도 기록을 느리게 해요. SOOM은 러닝마다 날씨 영향(%)을 계산해서, 러닝 VO2max·레이스 예측·러닝 퍼포먼스·유산소 효율을 날씨 영향을 뺀 값으로 계산해요. 그래서 한여름에 기록이 느려져도 체력이 떨어진 것처럼 보이지 않아요. 훈련 계획에도 예보를 반영해, 더운 날은 목표 페이스를 늦추고, 비·뇌우·강풍·미세먼지가 심한 날의 핵심 훈련은 날씨 좋은 날과 바꾸도록 추천해요.', how: '더위: 기온(°F)과 이슬점(°F)을 더한 값으로 느려지는 비율을 구하는 해들리(Hadley) 표를 써요. 합이 100 이하면 0%, 130이면 약 2%, 150이면 약 4.5%, 170이면 약 8%예요. 바람: 경로의 구간마다 달린 방향과 바람 방향으로 맞바람·뒷바람 세기를 구하고, 공기 저항(초속 4m로 달릴 때 전체 에너지의 약 3%)이 얼마나 늘거나 줄었는지 계산해요. 기온·습도는 애플워치가 운동과 함께 저장한 값을 먼저 써요. 바람·비·하늘 상태는 한국 안에서는 기상청 관측값을 써요. 그날 달린 러닝은 초단기실황(출발 지점의 5km 격자), 지난 러닝은 25km 안에서 가장 가까운 종관기상관측소(ASOS)의 시간별 기록이에요(기상청은 다음 날 공개해요). 관측소가 하늘 상태를 기록하지 않으면 하늘만 Open-Meteo 값을 써요. 해외와 관측값이 없는 경우에는 Open-Meteo(무료 날씨 서비스)를 써요.', ref: '가민 VO2 Max의 더위·습도 보정' },
   dew: { t: '이슬점', b: '공기 중 수분이 이슬로 맺히기 시작하는 온도예요. 습도보다 \'후텁지근함\'을 더 잘 보여줘요. 이슬점 10°C 이하는 쾌적, 16°C 이상은 끈적하고, 21°C 이상이면 땀이 잘 마르지 않아 달리기가 많이 힘들어요.', how: '기온과 상대습도로 계산해요(마그누스 공식).', ref: '' },
   bestTime: { t: '러닝 날씨 · 달리기 좋은 시간', b: '지금 날씨와 앞으로 12시간 예보, 그리고 오늘(이미 달렸거나 늦은 시간이면 내일) 날씨 부담이 가장 적은 시간대를 보여줘요. 평소 달리던 시간대를 먼저 고려하고, 더위·비·강풍·미세먼지·어둠이 심하면 다른 시간을 추천해요.', how: '오전 5시~오후 10시 사이 시간마다 더위(해들리 표), 체감 추위, 비(양·확률), 뇌우·눈, 바람, 미세먼지, 어두움을 점수로 매겨 훈련 길이만큼 이어진 가장 좋은 시간대를 골라요. 최근 러닝 30번의 평소 시각과 멀수록 점수를 조금 깎아요. 예보는 1시간마다 새로 받아요. 한국 안에서는 기상청 단기예보(앞으로 3일)를, 그 뒤의 날짜와 해외는 Open-Meteo를 써요.', ref: '' },
   pm: { t: '미세먼지 기준', b: '환경부 기준을 써요. 초미세먼지(PM2.5) 0~15 좋음 · 16~35 보통 · 36~75 나쁨 · 76 이상 매우 나쁨. 미세먼지(PM10) 0~30 좋음 · 31~80 보통 · 81~150 나쁨 · 151 이상 매우 나쁨. 나쁨이면 강도 높은 훈련은 실내나 다른 날로, 매우 나쁨이면 실내 러닝을 권해요.', how: '한국 안에서는 에어코리아(한국환경공단)의 측정소 실시간 값과 미세먼지 예보를 써요. 동네 이름과 같은 측정소가 있으면 그 값을, 없으면 시·도 평균을 보여 줘요. 실시간 자료는 확정 전 값이라 나중에 바뀔 수 있어요. 그 밖의 지역과 날짜는 유럽 코페르니쿠스 대기 감시 서비스(CAMS)의 예보(약 40km 간격, 참고용)를 Open-Meteo로 받아요.', ref: '' },
@@ -4284,6 +4373,8 @@ async function wxSync(force) {
         put(list, wxHourly(await wxGet(wxArURL(list[0], dayISO(d0), dayISO(Math.max(d0, d1))))));
       }
     }
+    // past runs in Korea: 기상청 observations replace Open-Meteo's model values (its own errors never hide the rest)
+    if (KMA_RELAY) { try { if (await wxKmaRuns(now, force)) runsChanged = true; } catch (e) { console.warn('kma runs', e); } }
   } catch (e) {
     console.warn('weather', e);
     st.wx.err = typeof navigator !== 'undefined' && navigator.onLine === false ? '인터넷에 연결되지 않아 날씨를 불러오지 못했어요.' : '날씨 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.';
@@ -4291,7 +4382,8 @@ async function wxSync(force) {
   st.wx.left = wxPending(now).length;
   if (runsChanged) { // keep only runs that are still stored (the example data gets new runs every day)
     const ids = new Set(st.data.runs.map(r => r.id)); for (const k of Object.keys(st.wx.runs)) if (!ids.has(k)) delete st.wx.runs[k];
-    DB.set('wx', { v: WX_V, runs: st.wx.runs });
+    for (const k of Object.keys(st.wx.ktry || {})) if (!ids.has(k)) delete st.wx.ktry[k];
+    DB.set('wx', { v: WX_V, runs: st.wx.runs, ktry: st.wx.ktry || {} });
   }
   if (runsChanged || fcChanged) { try { recompute(); } catch (e) { console.error(e); } }
   if (runsChanged || fcChanged || force || st.wx.err !== err0) refreshView(); // nothing new: leave the screen alone
@@ -4349,6 +4441,93 @@ async function wxAir(fc, now) {
   try { meas = a ? airNow(kmaItems(a), nm.slice(1)) : null; } catch (e) { meas = null; }
   try { grades = f ? airFcst(kmaItems(f), nm[0]) : null; } catch (e) { grades = null; }
   return airMerge(fc, now, grades, meas);
+}
+
+// ---------- past runs in Korea: 기상청 관측 ----------
+// A run from today: 초단기실황 for the hours it covers (the 5 km grid of its start; KMA keeps these for a day).
+// Older runs: the nearest 종관기상관측(ASOS) station's hourly record (KMA publishes it from the next day), up to 40 days per request.
+// Only grid numbers, a station number and times are sent; the route stays on the device.
+const KERR_WAIT = { relay: 6 * 3600, key: 6 * 3600, quota: 6 * 3600, other: 3600 };
+function kmaRunErr(e) {
+  const c = String((e && e.code) || ''), m = c + ' ' + String((e && e.message) || '');
+  if (/HTTP 404/.test(m)) return 'relay';
+  if (c === '30' || c === '31' || /SERVICE_KEY|NOT_REGISTERED|Unauthorized|HTTP 401/.test(m)) return 'key';
+  if (c === '22' || /LIMITED|EXCEEDS|HTTP 429/.test(m)) return 'quota';
+  return 'other';
+}
+function kmaRunErrText(k) {
+  return k === 'relay' ? '지난 러닝을 기상청 관측값으로 채우려면 중계기를 새 코드로 바꿔야 해요. 그동안은 Open-Meteo 값을 보여 줘요.'
+    : k === 'key' ? "지난 러닝의 기상청 관측값은 공공데이터포털에서 '기상청_지상(종관, ASOS) 시간자료 조회서비스'를 활용신청해야 받을 수 있어요(승인 뒤 1~2시간). 그동안은 Open-Meteo 값을 보여 줘요."
+    : k === 'quota' ? '오늘 기상청 관측자료 요청 한도를 넘었어요. 내일 이어서 받아요.'
+    : '기상청 관측자료를 불러오지 못했어요. 잠시 뒤 다시 시도해요.';
+}
+function kmaRunWait(now) { const e = st.wx.kerr; return !!(e && now - e.at < (KERR_WAIT[e.k] || 3600)); }
+function kmaRunPending(now, force) {
+  const out = { now: [], asos: [] }, today = Math.floor((now + KST) / 86400), wait = !force && kmaRunWait(now), tries = st.wx.ktry || {};
+  for (const r of st.data.runs) {
+    if (r.indoor || !r.route || !r.route.la || !r.route.la.length) continue;
+    const la = r.route.la[0], lo = r.route.lo[0]; if (!inKorea(la, lo)) continue;
+    const have = st.wx.runs[r.id];
+    if (have && (have.src === 'kma' || have.src === 'kman')) continue;
+    if (tries[r.id] && now - tries[r.id] < 3 * 86400) continue; // KMA had nothing for it: ask again in a few days
+    const fresh = r.start > now - 23 * 3600 && r.end < now - 600; // its hours are still in 초단기실황
+    if (Math.floor((r.end + KST) / 86400) < today && !wait) { const s = asosNear(la, lo); if (s) { out.asos.push({ r, s }); continue; } }
+    if (fresh) out.now.push({ r, g: kmaGrid(la, lo) });
+  }
+  return out;
+}
+async function wxKmaRuns(now, force) {
+  if (!st.data) return false;
+  const P = kmaRunPending(now, force); if (!P.now.length && !P.asos.length) return false;
+  let changed = false, ok = false, calls = force ? 15 : 6; // "지금 새로 받기" also skips the waiting time after an error
+  if (!st.wx.ktry) st.wx.ktry = {};
+  const fail = e => { const k = kmaRunErr(e); st.wx.kerr = { k, at: Math.round(now) }; LS.set('wxkerr', st.wx.kerr); console.warn('kma runs', k, e); };
+  // today's runs: one 초단기실황 answer per hour
+  for (const p of P.now) {
+    const answers = [], h0 = Math.floor(p.r.start / 3600) * 3600, h1 = Math.ceil(p.r.end / 3600) * 3600;
+    let bad = false;
+    for (let t = h0; t <= h1 && calls > 0; t += 3600) {
+      if (t > now - 15 * 60 || t < now - 23.5 * 3600) continue; // not published yet / no longer kept
+      calls--;
+      try { answers.push(kmaItems(await kmaGet('/now', { pageNo: 1, numOfRows: 60, dataType: 'JSON', base_date: kstDate(t), base_time: p2(kstParts(t).h) + '00', nx: p.g.nx, ny: p.g.ny }))); ok = true; }
+      catch (e) { fail(e); bad = true; break; }
+    }
+    if (bad) return changed;
+    const w = kmaRunWx(kmaObsHours(answers), p.r, st.wx.runs[p.r.id], { src: 'kman', at: Math.round(now) });
+    if (w) { st.wx.runs[p.r.id] = w; changed = true; }
+    if (calls <= 0) return changed;
+  }
+  // older runs: by station, stretches of up to 40 days (999 hourly rows per answer), newest first
+  const byStn = new Map();
+  for (const p of P.asos) { if (!byStn.has(p.s.id)) byStn.set(p.s.id, []); byStn.get(p.s.id).push(p); }
+  const chunks = [];
+  for (const list of byStn.values()) {
+    list.sort((a, b) => a.r.start - b.r.start);
+    let cur = null;
+    for (const p of list) { if (!cur || p.r.end - cur[0].r.start > 40 * 86400) { cur = []; chunks.push(cur); } cur.push(p); }
+  }
+  chunks.sort((a, b) => b[b.length - 1].r.start - a[a.length - 1].r.start);
+  const lastHour = (Math.floor((now + KST) / 86400) * 86400 - KST) - 3600; // 23:00 yesterday (Korean time)
+  for (const ch of chunks) {
+    if (calls-- <= 0) break;
+    const t0 = Math.floor(ch[0].r.start / 3600) * 3600 - 3600, t1 = Math.min(lastHour, Math.ceil(Math.max(...ch.map(p => p.r.end)) / 3600) * 3600 + 3600);
+    let H;
+    try {
+      H = asosHours(kmaItems(await kmaGet('/asos', { pageNo: 1, numOfRows: 999, dataType: 'JSON', dataCd: 'ASOS', dateCd: 'HR',
+        startDt: kstDate(t0), startHh: p2(kstParts(t0).h), endDt: kstDate(t1), endHh: p2(kstParts(t1).h), stnIds: ch[0].s.id })));
+      ok = true;
+    } catch (e) {
+      if (String(e && e.code) === '03') H = asosHours([]); // NO_DATA: nothing for these days
+      else { fail(e); return changed; }
+    }
+    for (const p of ch) {
+      const w = kmaRunWx(H, p.r, st.wx.runs[p.r.id], { src: 'kma', stn: p.s.id, sn: H.name || p.s.name, km: p.s.km, at: Math.round(now) });
+      if (w) st.wx.runs[p.r.id] = w; else st.wx.ktry[p.r.id] = Math.round(now); // nothing usable: kept as it was, asked again in a few days
+      changed = true;
+    }
+  }
+  if (ok && st.wx.kerr) { st.wx.kerr = null; LS.del('wxkerr'); } // this pass went through: the earlier problem is gone
+  return changed;
 }
 
 // re-draw after background work, unless the person is in the middle of something
@@ -4541,12 +4720,15 @@ function wxRunCard(r) {
   const pace = r.moving / Math.max(1, r.dist) * 1000, adj = pace / wxFactor(r);
   const eff = Math.abs(W.tot) >= 0.5 ? pill('날씨 영향 ' + (W.tot > 0 ? '+' : '−') + Math.abs(W.tot).toFixed(1) + '%', W.tot >= 3 ? 'warn' : 'ok') : pill('날씨 영향 거의 없음', 'good');
   let h = '<section class="card"><div class="card-head"><h2>날씨 ' + infoBtn('wx') + '</h2>' + eff + '</div>';
-  h += '<div class="wx-now">' + wxIcon(W.om ? W.wc : null, night, 'wx-big') + '<span class="num wx-t">' + deg(W.t) + '</span><div class="wx-desc"><b>' + (W.om ? esc(wxName(W.wc)) : '기온') + '</b><span>' + [isNum(W.at) ? '체감 ' + deg(W.at) : '', isNum(W.rh) ? '습도 ' + W.rh + '%' : ''].filter(Boolean).join(' · ') + '</span>' + (W.om && isNum(W.ws) ? '<span>바람 ' + W.ws.toFixed(1) + 'm/s ' + windName(W.wd) + '</span>' : '') + '</div></div>';
+  h += '<div class="wx-now">' + wxIcon(W.om ? W.wc : null, night, 'wx-big') + '<span class="num wx-t">' + deg(W.t) + '</span><div class="wx-desc"><b>' + (W.om && isNum(W.wc) ? esc(wxName(W.wc)) : '기온') + '</b><span>' + [isNum(W.at) ? '체감 ' + deg(W.at) : '', isNum(W.rh) ? '습도 ' + W.rh + '%' : ''].filter(Boolean).join(' · ') + '</span>' + (W.om && isNum(W.ws) ? '<span>바람 ' + W.ws.toFixed(1) + 'm/s ' + windName(W.wd) + '</span>' : '') + '</div></div>';
   h += '<div class="grid2" style="margin-top:12px;gap:12px 10px">' + mini('이슬점', isNum(W.dp) ? Math.round(W.dp) + '°C' : '–', 'dew') + mini('강수', W.om ? (isNum(W.pr) && W.pr >= 0.1 ? W.pr.toFixed(1) + ' mm' : '없음') : '–') +
     mini('더위 영향', '+' + W.heat.toFixed(1) + '%') + mini('바람 영향', W.om && isNum(W.ws) ? (W.wind >= 0 ? '+' : '−') + Math.abs(W.wind).toFixed(1) + '%' : '–') + '</div>';
   if (Math.abs(W.tot) >= 0.5) h += '<p class="small ink2" style="margin-top:10px">날씨 영향을 빼면 평균 페이스 <b class="tnum">' + fmtPace(adj) + '/km</b>예요 (실제 ' + fmtPace(pace) + '/km). 러닝 VO2max·레이스 예측·퍼포먼스는 이 값으로 계산해요.</p>';
   if (W.om && isNum(W.ws) && W.ws >= 2 && r.route) h += '<p class="xs muted" style="margin-top:4px">경로 중 맞바람 구간 ' + Math.round(W.head * 100) + '% · 뒷바람 구간 ' + Math.round(W.tail * 100) + '%</p>';
-  const src = (W.apple ? '기온·습도: 애플워치 기록' : '기온·습도: Open-Meteo') + (W.om ? ' · 바람·비·하늘: Open-Meteo' : wxOn() ? ' · 바람·비 정보는 아직 없어요(인터넷 연결 시 자동으로 채워요)' : '');
+  const K = W.kma, kWho = K ? (K.src === 'kma' ? '기상청 ' + (K.sn || '') + ' 관측소' + (isNum(K.km) ? '(약 ' + Math.round(K.km) + 'km)' : '') : '기상청 실황(5km 격자)') : '';
+  const src = (W.apple ? '기온·습도: 애플워치 기록' : K ? '기온·습도: ' + kWho : '기온·습도: Open-Meteo') +
+    (K ? (K.sky === 'k' ? ' · 바람·비·하늘: ' + kWho : ' · 바람·비: ' + kWho + (K.sky === 'o' ? ' · 하늘: Open-Meteo' : ''))
+      : W.om ? ' · 바람·비·하늘: Open-Meteo' : wxOn() ? ' · 바람·비 정보는 아직 없어요(인터넷 연결 시 자동으로 채워요)' : '');
   return h + '<p class="xs muted" style="margin-top:6px">' + esc(src) + '</p></section>';
 }
 function wxRunTag(r) {
@@ -4561,9 +4743,9 @@ function wxStatusHTML() {
   parts.push(fc ? '예보 ' + timeKo(fc.at, localOffsetSec()) + ' 업데이트' : st.wx.busy ? '예보 불러오는 중' : '예보 아직 없음');
   const nm = wxPlaceTxt(false), here = S.wxLocMode === 'here' && S.wxLoc;
   if (here || nm) parts.push((here ? '현재 위치' : '최근 러닝 장소') + (nm ? ': ' + nm : here ? ' 확인됨' : ''));
-  if (runs.length) parts.push('지난 러닝 날씨 ' + have + '/' + runs.length + '회');
+  if (runs.length) { const nk = runs.filter(r => st.wx.runs[r.id] && /^kma/.test(st.wx.runs[r.id].src || '')).length; parts.push('지난 러닝 날씨 ' + have + '/' + runs.length + '회' + (nk ? '(기상청 관측 ' + nk + '회)' : '')); }
   if (KMA_RELAY && fc && fc.kma) parts.push('기상청 연결됨 (' + Number(fc.kma.base.slice(8, 10)) + '시 발표' + (fc.airNow ? ' · 에어코리아' : '') + ')');
-  return '<div class="wx-status"><span class="xs muted">' + esc(parts.join(' · ')) + (st.wx.err ? '<br>' + esc(st.wx.err) : '') + (st.wx.kmaErr ? '<br>' + esc(st.wx.kmaErr) : '') + '</span><button type="button" class="link" data-act="wx-refresh">지금 새로 받기</button></div>';
+  return '<div class="wx-status"><span class="xs muted">' + esc(parts.join(' · ')) + (st.wx.err ? '<br>' + esc(st.wx.err) : '') + (st.wx.kmaErr ? '<br>' + esc(st.wx.kmaErr) : st.wx.kerr && KMA_RELAY ? '<br>' + esc(kmaRunErrText(st.wx.kerr.k)) : '') + '</span><button type="button" class="link" data-act="wx-refresh">지금 새로 받기</button></div>';
 }
 
 // ===== ui_shoes.js — the 러닝화 tab: each shoe's distance toward its replacement point =====
@@ -4675,7 +4857,7 @@ function shoeAlert() {
 // ===== ui_views.js — the five tabs, run detail, settings, data import, guide =====
 
 const st = { data: null, settings: {}, M: null, view: 'today', back: [], runFilter: 'all', runLimit: 60, runChart: 'pace', mounts: [], scroll: {}, saved: false, dl: null, importing: null, confirmDelete: false, growthRange: 180,
-  wx: { runs: {}, fc: null, busy: false, lastTry: 0, err: null, left: 0 }, dirty: false };
+  wx: { runs: {}, fc: null, busy: false, lastTry: 0, err: null, left: 0, ktry: {}, kerr: null }, dirty: false };
 function mount(fn) { st.mounts.push(fn); }
 const isDemo = () => st.data && st.data.source === 'demo';
 const tones = s => s === null || s === undefined ? 'muted' : s >= 75 ? 'good' : s >= 50 ? 'ok' : s >= 25 ? 'warn' : 'bad';
@@ -5644,7 +5826,7 @@ $('#file-backup').addEventListener('change', async e => {
     if (obj.settings) { st.settings = obj.settings; LS.set('settings', st.settings); DB.set('settings', st.settings); }
     if (obj.gear && Array.isArray(obj.gear.shoes)) { st.gear = Object.assign({ shoes: [], pick: {} }, obj.gear); saveGear(); }
     if (obj.notes && typeof obj.notes === 'object') { st.notes = Object.assign({}, obj.notes, st.notes); LS.set('notes', st.notes); DB.set('notes', st.notes); }
-    if (obj.wx && typeof obj.wx === 'object') { st.wx.runs = Object.assign({}, obj.wx, st.wx.runs); DB.set('wx', { v: WX_V, runs: st.wx.runs }); }
+    if (obj.wx && typeof obj.wx === 'object') { st.wx.runs = Object.assign({}, obj.wx, st.wx.runs); DB.set('wx', { v: WX_V, runs: st.wx.runs, ktry: st.wx.ktry || {} }); }
     st.saved = await DB.set('data', cleanData(data));
     recompute(); st.importError = null; st.back = []; st.view = 'today'; render();
     toast('백업에서 러닝 ' + data.runs.length + '회를 복원했어요');
@@ -5683,7 +5865,7 @@ async function shareApp() {
   try { await navigator.clipboard.writeText(url); toast('주소를 복사했어요: ' + url); } catch (e) { toast('SOOM 주소: ' + url); }
 }
 async function doDelete() {
-  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('wxfc'); st.newIds = []; st.gear = { shoes: [], pick: {} };
+  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('wxfc'); LS.del('wxkerr'); st.newIds = []; st.gear = { shoes: [], pick: {} };
   st.wx.runs = {}; st.wx.fc = null; st.wx.err = null; st.wx.place = null; LS.del('wxplace'); LS.del('places');
   st.notes = {}; LS.del('notes'); await DB.del('notes');
   st.settings = {}; st.saved = false; st.confirmDelete = false;
@@ -5701,7 +5883,8 @@ async function boot() {
   st.gear = (await DB.get('gear')) || LS.get('gear') || { shoes: [], pick: {} };
   if (!st.gear.pick) st.gear.pick = {};
   const wxs = await DB.get('wx');
-  if (wxs && wxs.v === WX_V && wxs.runs) st.wx.runs = wxs.runs;
+  if (wxs && wxs.v === WX_V && wxs.runs) { st.wx.runs = wxs.runs; st.wx.ktry = wxs.ktry || {}; }
+  st.wx.kerr = LS.get('wxkerr') || null;
   const fcs = LS.get('wxfc'); if (fcs && fcs.v === WX_V) st.wx.fc = fcs;
   st.wx.place = LS.get('wxplace') || null;
   st.notes = LS.get('notes') || (await DB.get('notes')) || {};
