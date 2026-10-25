@@ -561,6 +561,9 @@ details.more[open] summary::after { content: "접기"; }
 .chk { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 7px 14px; font-size: 13px; }
 .chk[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .chk[aria-pressed="true"]::before { content: "✓ "; }
+.share-btns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.share-btns .btn { padding: 11px 4px; font-size: 13.5px; gap: 5px; white-space: nowrap; }
+.share-btns .btn svg { width: 14px; height: 14px; }
 </style>
 <div id="app">
   <header class="top">
@@ -3993,7 +3996,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "91f05a72f7"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f647d8bf81"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5387,8 +5390,7 @@ function shareSheet(id) {
     '<p class="xs muted" style="text-align:center">미리보기를 길게 눌러도 사진에 저장할 수 있어요.</p>' +
     '<div class="share-opts">' + (hasRoute ? '<div class="fl"><span class="xs muted">경로와 지도</span>' + seg('route', [['trim', '출발·도착 가리기'], ['full', '전체'], ['off', '숨기기']], o.route) + '</div>' : '') +
     '<div class="chks">' + tog('hr', '심박', !!r.hrAvg) + tog('wx', '날씨', !!r.wx) + tog('memo', '메모', !!noteFor(r)) + '</div></div>' +
-    '<div class="row" style="gap:8px;margin-top:14px"><button type="button" class="btn" data-act="share-go" data-v="' + r.id + '" style="flex:1">' + IC.share + '경로 공유</button><button type="button" class="btn secondary" data-act="share-save" data-v="' + r.id + '" style="flex:1">' + IC.photo + '사진으로 저장</button></div>' +
-    '<button type="button" class="btn ghost block" data-act="share-text" data-v="' + r.id + '" style="margin-top:8px">글로 복사</button>' +
+    '<div class="share-btns"><button type="button" class="btn" data-act="share-go" data-v="' + r.id + '">' + IC.share + '카드 공유</button><button type="button" class="btn secondary" data-act="share-save" data-v="' + r.id + '">' + IC.photo + '사진으로 저장</button><button type="button" class="btn secondary" data-act="share-text" data-v="' + r.id + '">' + IC.pen + '글로 복사</button></div>' +
     '<p class="xs muted" style="margin-top:10px">사진으로 저장: 공유 창이 뜨면 "이미지 저장"을 눌러요.' + (hasRoute ? ' "출발·도착 가리기"는 집 위치가 드러나지 않게 경로의 처음과 끝 200m를 지워요. 지도 © OpenStreetMap 기여자.' : '') + '</p>';
 }
 function openShare(id) { st.shareId = id; openSheet(shareSheet(id)); renderShare(id); }
@@ -5409,7 +5411,8 @@ function shPoints(r, o) {
   return pts.length >= 3 ? pts : [];
 }
 // which tiles cover the route at the largest zoom that fits the panel, and where each point lands
-function shMapPlan(r, pts, box) {
+function shMapPlan(r, pts, box, area) {
+  area = area || box;
   if (!pts.length) return null;
   const rt = r.route, X = (lon, z) => (lon + 180) / 360 * 256 * 2 ** z, Y = (lat, z) => { const s = Math.sin(lat * Math.PI / 180); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * 2 ** z; };
   let z = 17, x0, x1, y0, y1;
@@ -5418,12 +5421,15 @@ function shMapPlan(r, pts, box) {
     for (const i of pts) { const x = X(rt.lo[i], z), y = Y(rt.la[i], z); if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     if (x1 - x0 <= box.w - 130 && y1 - y0 <= box.h - 110) break;
   }
-  const wx0 = (x0 + x1) / 2 - box.w / 2, wy0 = (y0 + y1) / 2 - box.h / 2, n = 2 ** z, tiles = [];
-  for (let tx = Math.floor(wx0 / 256); tx <= Math.floor((wx0 + box.w) / 256); tx++) for (let ty = Math.floor(wy0 / 256); ty <= Math.floor((wy0 + box.h) / 256); ty++) {
+  // between two zoom levels the tiles are enlarged (up to 2×) so the route fills the box
+  const f = clamp(Math.min((box.w - 130) / Math.max(1, x1 - x0), (box.h - 110) / Math.max(1, y1 - y0)), 1, 1.99), T = 256 * f;
+  // canvas x = world x × f − ox: the route's middle lands in the middle of the box; tiles fill the whole area
+  const ox = (x0 + x1) / 2 * f - (box.x + box.w / 2), oy = (y0 + y1) / 2 * f - (box.y + box.h / 2), n = 2 ** z, tiles = [];
+  for (let tx = Math.floor((area.x + ox) / T); tx <= Math.floor((area.x + area.w + ox) / T); tx++) for (let ty = Math.floor((area.y + oy) / T); ty <= Math.floor((area.y + area.h + oy) / T); ty++) {
     if (ty < 0 || ty >= n) continue;
-    tiles.push({ url: SH_TILE.replace('{z}', z).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty), dx: box.x + tx * 256 - wx0, dy: box.y + ty * 256 - wy0 });
+    tiles.push({ url: SH_TILE.replace('{z}', z).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty), dx: tx * T - ox, dy: ty * T - oy, s: T });
   }
-  return { z, tiles, px: i => box.x + X(rt.lo[i], z) - wx0, py: i => box.y + Y(rt.la[i], z) - wy0 };
+  return { z, tiles, px: i => X(rt.lo[i], z) * f - ox, py: i => Y(rt.la[i], z) * f - oy };
 }
 // draw now (route on a plain panel), then again with the map once its tiles arrive
 async function renderShare(id) {
@@ -5470,10 +5476,6 @@ function drawShareCard(cv, r, o, tiles) {
   const text = (s, x, y, font, color, align) => { g.font = font; g.fillStyle = color || ink; g.textAlign = align || 'left'; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); return g.measureText(s).width; };
   const fit = (s, font, maxW) => { g.font = font; if (g.measureText(s).width <= maxW) return s; let t = s; while (t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; };
   const rrect = (x, y, w, h, rad) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, rad); else g.rect(x, y, w, h); };
-  // header: SOOM's mark and when
-  const mw = shMark(g, P, 92, 40);
-  text('SOOM', P + (mw ? mw + 22 : 0), 128, '800 46px ' + SH_KO, ink);
-  text(fmtDay(r.day) + ' · ' + timeKo(r.start, r.off), W - P, 128, '600 34px ' + SH_KO, sub, 'right');
   // layout from the bottom up: footer, numbers, distance, badges, memo; the map gets the space that is left
   const memo = o.memo ? noteFor(r) : '', L0 = LABELS[r.label], badges = [];
   if (L0) badges.push(L0.name);
@@ -5481,13 +5483,15 @@ function drawShareCard(cv, r, o, tiles) {
   const c0 = typeof crs === 'function' ? crs().byRun.get(r.id) : null, spot = c0 ? courseSpot(c0, r.id) : null;
   if (spot && spot.rank === 1 && spot.n >= 3) badges.push('이 코스 최고 기록');
   const footY = H - 62, valY = H - 136, labY = valY - 80, distY = labY - 74, badgeY = distY - 214, memoY = (badges.length ? badgeY : distY - 150) - 76;
-  const top = 178, box = { x: P, y: top, w: W - 2 * P, h: Math.max(300, (memo ? memoY - 66 : badges.length ? badgeY - 76 : distY - 232) - top) };
-  const pts = shPoints(r, o), plan = shMapPlan(r, pts, box);
+  // the map runs from the top edge (SOOM and the date sit on it) down to the memo; the route fits inside, clear of the header
+  const mapB = Math.max(520, memo ? memoY - 66 : badges.length ? badgeY - 76 : distY - 232);
+  const area = { x: 0, y: 0, w: W, h: mapB }, box = { x: P, y: 176, w: W - 2 * P, h: mapB - 176 - 54 };
+  const pts = shPoints(r, o), plan = shMapPlan(r, pts, box, area);
   if (plan) {
-    g.save(); rrect(box.x, box.y, box.w, box.h, 34); g.clip();
-    g.fillStyle = '#e9e6df'; g.fillRect(box.x, box.y, box.w, box.h);
-    if (tiles) plan.tiles.forEach((t, i) => { if (tiles[i]) g.drawImage(tiles[i], t.dx, t.dy, 256, 256); });
-    else { g.strokeStyle = 'rgba(0,0,0,.05)'; g.lineWidth = 2; for (let x = box.x; x < box.x + box.w; x += 64) { g.beginPath(); g.moveTo(x, box.y); g.lineTo(x, box.y + box.h); g.stroke(); } for (let y = box.y; y < box.y + box.h; y += 64) { g.beginPath(); g.moveTo(box.x, y); g.lineTo(box.x + box.w, y); g.stroke(); } }
+    g.save(); g.beginPath(); g.moveTo(0, 0); g.lineTo(W, 0); g.lineTo(W, mapB - 44); g.quadraticCurveTo(W, mapB, W - 44, mapB); g.lineTo(44, mapB); g.quadraticCurveTo(0, mapB, 0, mapB - 44); g.closePath(); g.clip();
+    g.fillStyle = '#e9e6df'; g.fillRect(0, 0, W, mapB);
+    if (tiles) plan.tiles.forEach((t, i) => { if (tiles[i]) g.drawImage(tiles[i], t.dx, t.dy, t.s + 0.5, t.s + 0.5); });
+    else { g.strokeStyle = 'rgba(0,0,0,.05)'; g.lineWidth = 2; for (let x = 0; x < W; x += 64) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, mapB); g.stroke(); } for (let y = 0; y < mapB; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); } }
     // route: white casing, then pace colours (slow red → fast green, as on the app's map)
     const sp = routeSpeeds(r), rng = speedRange(sp), span = Math.max(0.05, rng[1] - rng[0]);
     g.lineJoin = 'round'; g.lineCap = 'round';
@@ -5500,12 +5504,22 @@ function drawShareCard(cv, r, o, tiles) {
       g.fillStyle = '#34c759'; g.strokeStyle = '#ffffff'; g.lineWidth = 6; g.beginPath(); g.arc(plan.px(a), plan.py(a), 15, 0, Math.PI * 2); g.fill(); g.stroke();
       g.fillStyle = '#12141b'; g.fillRect(plan.px(b) - 13, plan.py(b) - 13, 26, 26); g.strokeRect(plan.px(b) - 13, plan.py(b) - 13, 26, 26);
     }
-    if (tiles) { g.font = '600 22px ' + SH_KO; const at = '© OpenStreetMap', aw = g.measureText(at).width + 22; g.fillStyle = 'rgba(255,255,255,.82)'; g.fillRect(box.x + box.w - aw, box.y + box.h - 36, aw, 36); text(at, box.x + box.w - 11, box.y + box.h - 11, '600 22px ' + SH_KO, '#3c4150', 'right'); }
+    if (tiles) { g.font = '500 15px ' + SH_KO; const at = '© OpenStreetMap', aw = g.measureText(at).width + 12; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(W - 48 - aw, mapB - 26, aw, 20); text(at, W - 54, mapB - 11, '500 15px ' + SH_KO, 'rgba(40,44,56,.85)', 'right'); }
     g.restore();
   } else {
     if (L0) text(L0.name, W / 2, box.y + box.h / 2 + 30, '800 96px ' + SH_KO, 'rgba(255,255,255,.9)', 'center');
     text(r.indoor ? '실내 달리기' : '러닝', W / 2, box.y + box.h / 2 + 100, '600 40px ' + SH_KO, sub, 'center');
   }
+  // header: SOOM's mark and when (on dark pills when they sit on the map)
+  g.font = '800 46px ' + SH_KO; const sw = g.measureText('SOOM').width;
+  g.font = '600 34px ' + SH_KO; const dTx = fmtDay(r.day) + ' · ' + timeKo(r.start, r.off), dw0 = g.measureText(dTx).width;
+  if (plan) {
+    g.save(); g.globalAlpha = 0.92; g.fillStyle = '#211f62';
+    rrect(P - 24, 70, 108 + 22 + sw + 48, 80, 40); g.fill(); rrect(W - P - dw0 - 28, 76, dw0 + 56, 68, 34); g.fill(); g.restore();
+  }
+  const mw = shMark(g, P, 92, 40);
+  text('SOOM', P + (mw ? mw + 22 : 0), 128, '800 46px ' + SH_KO, ink);
+  text(dTx, W - P, 124, '600 34px ' + SH_KO, plan ? ink : sub, 'right');
   // memo and badges
   if (memo) text(fit('“' + memo + '”', '600 44px ' + SH_KO, W - 2 * P), P, memoY, '600 44px ' + SH_KO, ink);
   if (badges.length) {
