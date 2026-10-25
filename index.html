@@ -3996,7 +3996,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f647d8bf81"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "950108663c"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5452,12 +5452,12 @@ async function shPreview(cv, tok) {
 }
 const SH_KO = '"Apple SD Gothic Neo", "Noto Sans KR", -apple-system, "Malgun Gothic", sans-serif', SH_NUM = '"Barlow Condensed", "SF Pro Display", "Arial Narrow", sans-serif';
 // SOOM's mark as in the app's header: the pace-coloured line from a red ring to a green dot
-function shMark(g, x, y, h) {
+function shMark(g, x, y, h, bg) {
   const path = document.querySelector('.top .mark path'), d = path && path.getAttribute('d'); if (!d || typeof Path2D === 'undefined') return 0;
   const k = h / 307; g.save(); g.translate(x - 130 * k, y - 357 * k); g.scale(k, k);
   const gr = g.createLinearGradient(200, 0, 812, 0); gr.addColorStop(0, '#E5483B'); gr.addColorStop(0.5, '#F2A91F'); gr.addColorStop(1, '#2DAE5F');
   g.strokeStyle = gr; g.lineWidth = 58; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(new Path2D(d));
-  const bg = '#211f62';
+  bg = bg || '#0c0d12';
   g.fillStyle = bg; g.beginPath(); g.arc(200, 540, 46, 0, Math.PI * 2); g.fill();
   g.strokeStyle = '#E5483B'; g.lineWidth = 19; g.beginPath(); g.arc(200, 540, 29, 0, Math.PI * 2); g.fill(); g.stroke();
   g.fillStyle = bg; g.beginPath(); g.arc(812, 490, 64, 0, Math.PI * 2); g.fill();
@@ -5485,7 +5485,7 @@ function drawShareCard(cv, r, o, tiles) {
   const footY = H - 62, valY = H - 136, labY = valY - 80, distY = labY - 74, badgeY = distY - 214, memoY = (badges.length ? badgeY : distY - 150) - 76;
   // the map runs from the top edge (SOOM and the date sit on it) down to the memo; the route fits inside, clear of the header
   const mapB = Math.max(520, memo ? memoY - 66 : badges.length ? badgeY - 76 : distY - 232);
-  const area = { x: 0, y: 0, w: W, h: mapB }, box = { x: P, y: 176, w: W - 2 * P, h: mapB - 176 - 54 };
+  const area = { x: 0, y: 0, w: W, h: mapB }, box = { x: P, y: 84, w: W - 2 * P, h: mapB - 84 - 54 };
   const pts = shPoints(r, o), plan = shMapPlan(r, pts, box, area);
   if (plan) {
     g.save(); g.beginPath(); g.moveTo(0, 0); g.lineTo(W, 0); g.lineTo(W, mapB - 44); g.quadraticCurveTo(W, mapB, W - 44, mapB); g.lineTo(44, mapB); g.quadraticCurveTo(0, mapB, 0, mapB - 44); g.closePath(); g.clip();
@@ -5510,16 +5510,6 @@ function drawShareCard(cv, r, o, tiles) {
     if (L0) text(L0.name, W / 2, box.y + box.h / 2 + 30, '800 96px ' + SH_KO, 'rgba(255,255,255,.9)', 'center');
     text(r.indoor ? '실내 달리기' : '러닝', W / 2, box.y + box.h / 2 + 100, '600 40px ' + SH_KO, sub, 'center');
   }
-  // header: SOOM's mark and when (on dark pills when they sit on the map)
-  g.font = '800 46px ' + SH_KO; const sw = g.measureText('SOOM').width;
-  g.font = '600 34px ' + SH_KO; const dTx = fmtDay(r.day) + ' · ' + timeKo(r.start, r.off), dw0 = g.measureText(dTx).width;
-  if (plan) {
-    g.save(); g.globalAlpha = 0.92; g.fillStyle = '#211f62';
-    rrect(P - 24, 70, 108 + 22 + sw + 48, 80, 40); g.fill(); rrect(W - P - dw0 - 28, 76, dw0 + 56, 68, 34); g.fill(); g.restore();
-  }
-  const mw = shMark(g, P, 92, 40);
-  text('SOOM', P + (mw ? mw + 22 : 0), 128, '800 46px ' + SH_KO, ink);
-  text(dTx, W - P, 124, '600 34px ' + SH_KO, plan ? ink : sub, 'right');
   // memo and badges
   if (memo) text(fit('“' + memo + '”', '600 44px ' + SH_KO, W - 2 * P), P, memoY, '600 44px ' + SH_KO, ink);
   if (badges.length) {
@@ -5528,7 +5518,11 @@ function drawShareCard(cv, r, o, tiles) {
   }
   // the numbers (shrunk to fit their column when a font runs wide)
   const sizeFor = (str, weight, size, maxW, fam) => { g.font = weight + ' ' + size + 'px ' + fam; let sz = size; while (sz > 36 && g.measureText(str).width > maxW) { sz -= 4; g.font = weight + ' ' + sz + 'px ' + fam; } return sz; };
-  const dTxt = kmTxt(r.dist, 2), dSz = sizeFor(dTxt, '600', 230, W - 2 * P - 150, SH_NUM);
+  // when: two lines at the right of the distance
+  const d1 = fmtDay(r.day), d2 = timeKo(r.start, r.off);
+  g.font = '600 34px ' + SH_KO; const dateW = Math.max(g.measureText(d1).width, g.measureText(d2).width);
+  text(d1, W - P, distY - 96, '600 34px ' + SH_KO, sub, 'right'); text(d2, W - P, distY - 46, '600 34px ' + SH_KO, sub, 'right');
+  const dTxt = kmTxt(r.dist, 2), dSz = sizeFor(dTxt, '600', 230, W - 2 * P - dateW - 150, SH_NUM);
   const dw = text(dTxt, P - 6, distY, '600 ' + dSz + 'px ' + SH_NUM, ink);
   text('km', P + dw + 10, distY, '600 ' + Math.round(dSz * 0.3) + 'px ' + SH_NUM, sub);
   const pace = r.moving / Math.max(1, r.dist) * 1000, cols = [['시간', fmtDur(r.dur), ''], ['평균 페이스', fmtPace(pace), '/km']];
@@ -5543,8 +5537,11 @@ function drawShareCard(cv, r, o, tiles) {
   const foot = [];
   if (o.wx && r.wx) foot.push(Math.round(r.wx.t) + '°' + (r.wx.om && isNum(r.wx.wc) ? ' ' + wxName(r.wx.wc) : '') + (isNum(r.wx.rh) ? ' · 습도 ' + r.wx.rh + '%' : ''));
   if (!r.indoor && r.up) foot.push('오르막 ' + r.up + 'm');
-  if (r.cad) foot.push('케이던스 ' + r.cad);
-  if (foot.length) text(fit(foot.join('   ·   '), '600 30px ' + SH_KO, W - 2 * P), P, footY, '600 30px ' + SH_KO, sub);
+  // SOOM, small, at the bottom right (the mark's gaps take the card's colour there)
+  g.font = '800 32px ' + SH_KO; const sw = g.measureText('SOOM').width, mH = 26, mW = 752 * mH / 307, mx = W - P - sw - 12 - mW;
+  st.shMarkAt = { x: mx, y: footY - 24, k: mH / 307 };
+  shMark(g, mx, footY - 24, mH, '#0c0d12'); text('SOOM', W - P, footY, '800 32px ' + SH_KO, ink, 'right');
+  if (foot.length) text(fit(foot.join('   ·   '), '600 28px ' + SH_KO, W - 2 * P - sw - mW - 50), P, footY, '600 28px ' + SH_KO, sub);
   return { plan };
 }
 // share (to an app) or save (to Photos: the share window's "이미지 저장") — both go through the phone's share window
