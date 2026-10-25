@@ -554,8 +554,7 @@ details.more[open] summary::after { content: "접기"; }
 
 /* ---- sharing a run ---- */
 .share-prev { margin: 12px auto 4px; width: min(100%, 300px); aspect-ratio: 4 / 5; border-radius: 14px; overflow: hidden; background: var(--surface-2); box-shadow: var(--shadow); }
-.share-prev.clear { background-color: #8a8f9c; background-image: linear-gradient(45deg, #9aa0ad 25%, transparent 25%, transparent 75%, #9aa0ad 75%), linear-gradient(45deg, #9aa0ad 25%, transparent 25%, transparent 75%, #9aa0ad 75%); background-size: 24px 24px; background-position: 0 0, 12px 12px; }
-.share-prev canvas { width: 100%; height: 100%; display: block; }
+.share-prev img { width: 100%; height: 100%; display: block; object-fit: contain; -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; }
 .share-opts { display: grid; gap: 10px; margin-top: 12px; }
 .share-opts .fl { display: grid; gap: 4px; }
 .chks { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2639,22 +2638,24 @@ function buildProfile(data, S, today) {
   if (birthYear) age = civilFromDays(today)[0] - birthYear;
   const ageKnown = age !== null && age > 5 && age < 100; if (!ageKnown) age = 35;
   const weight = S.weight || me.mass || null;
-  const rd = Object.keys(data.days.rhr).map(Number).sort((a, b) => a - b);
-  const recentR = rd.filter(d => d > today - 30 && d <= today);
-  let restAuto = median((recentR.length >= 5 ? recentR : rd.slice(-30)).map(d => data.days.rhr[d]));
+  // everything below uses only what was known on `today`, so the same function describes a past day for that day's runs
+  const rd = Object.keys(data.days.rhr).map(Number).sort((a, b) => a - b), upto = rd.filter(d => d <= today);
+  const recentR = upto.filter(d => d > today - 30);
+  let restAuto = median((recentR.length >= 5 ? recentR : upto.length ? upto.slice(-30) : rd.slice(0, 30)).map(d => data.days.rhr[d]));
   const restSrc = isNum(restAuto) ? 'data' : 'default';
   if (!isNum(restAuto)) restAuto = 60;
   const rest = S.restHR || Math.round(restAuto);
   const formula = Math.round(208 - 0.7 * age);
-  const cands = data.runs.filter(r => r.day > today - 365 && r.maxHRr > 100 && r.maxHRr < 225).map(r => r.maxHRr).sort((a, b) => b - a);
+  const cands = data.runs.filter(r => r.day > today - 365 && r.day <= today && r.maxHRr > 100 && r.maxHRr < 225).map(r => r.maxHRr).sort((a, b) => b - a);
   let maxAuto, maxSrc;
-  if (cands.length) {
-    maxAuto = cands.length >= 5 ? cands[1] : cands[0]; maxSrc = 'data';
+  if (cands.length >= 5) {
+    maxAuto = cands[1]; maxSrc = 'data';
     if (maxAuto < formula - 5) { maxAuto = Math.round((maxAuto + formula - 5) / 2); maxSrc = 'blend'; }
-  } else { maxAuto = formula; maxSrc = 'formula'; }
+  } else if (cands.length && cands[0] > formula) { maxAuto = cands[0]; maxSrc = 'data'; } // a few runs only: they can raise the age estimate, not lower it
+  else { maxAuto = formula; maxSrc = 'formula'; }
   const max = S.maxHR || Math.round(maxAuto);
   const hrr = Math.max(20, max - rest);
-  const h20 = data.runs.filter(r => r.day > today - 180 && r.hr20 > 0 && r.hr20 < 0.97 * max).map(r => r.hr20);
+  const h20 = data.runs.filter(r => r.day > today - 180 && r.day <= today && r.hr20 > 0 && r.hr20 < 0.97 * max).map(r => r.hr20);
   const best20 = h20.length ? Math.max(...h20) : 0;
   let lthrAuto, lthrSrc;
   if (best20 >= rest + 0.8 * hrr) { lthrAuto = clamp(best20 * 0.97, rest + 0.8 * hrr, rest + 0.9 * hrr); lthrSrc = 'data'; }
@@ -2872,12 +2873,16 @@ function analyze(data, settings, opt) {
   if (range.to < today) { asOf = range.to; today = asOf; now = (asOf + 1) * 86400 - off - 1; }
   const runs = data.runs.filter(r => r.day >= fromDay && r.day <= today).sort((a, b) => a.start - b.start);
   const others = (data.others || []).filter(o => o.day >= fromDay && o.day <= today).sort((a, b) => a.start - b.start);
+  const full = data; // the whole history: heart-rate settings are estimated from everything known up to each day
   if (fromDay > -Infinity || asOf !== null) data = Object.assign({}, data, { runs, others, days: asOf !== null ? cutDays(data.days, asOf) : data.days });
-  const P = buildProfile(data, S, today);
+  const P = buildProfile(full, S, today);
+  // each run is judged by the zones of its own day (resting/max/threshold heart rate as they stood then), so its record
+  // stays as it was when the heart-rate settings move on; numbers typed in settings apply to every run
+  const PD = new Map(), profAt = day => { if (day >= today) return P; if (!PD.has(day)) PD.set(day, buildProfile(full, S, day)); return PD.get(day); };
   const female = P.sex === 'female';
   // weather during each run (Apple's temperature/humidity + Open-Meteo wind and rain when fetched)
   for (const r of runs) r.wx = S.weather === false ? null : runWeather(r, opt.wx ? opt.wx[r.id] : null);
-  for (const r of runs) runStage1(r, P);
+  for (const r of runs) { r.P = profAt(r.day); runStage1(r, r.P); }
 
   const firstDay = Math.min(runs.length ? runs[0].day : today, others.length ? others[0].day : today, today);
   const d0 = Math.max(firstDay, today - 3 * 365) - 1, d1 = today;
@@ -2898,7 +2903,7 @@ function analyze(data, settings, opt) {
     r.load = Math.round(load || 0);
   }
   for (const o of others) {
-    let tr = 0; for (const b in o.hist) tr += o.hist[b] / 60 * trimpOf(+b, P.rest, P.max, female);
+    const Po = profAt(o.day); let tr = 0; for (const b in o.hist) tr += o.hist[b] / 60 * trimpOf(+b, Po.rest, Po.max, female);
     o.load = Math.round(tr);
   }
   const nD = d1 - d0 + 1, load = new Float64Array(nD);
@@ -2921,7 +2926,7 @@ function analyze(data, settings, opt) {
     const vmax = lvl ? speedForVO2(lvl) / 60 : NaN;
     for (let i = 0; i < s.t.length; i++) {
       const dt = blockDt(s, i), h = s.h[i], g = s.gv[i] / 100, v = s.v[i] / 100;
-      if (h >= P.lthr + 3) hiHR += dt;
+      if (h >= r.P.lthr + 3) hiHR += dt;
       if (isNum(vmax)) {
         if (g >= 0.975 * vmax) fast += dt;
         if (v >= 1.07 * vmax) run += dt; else { if (run >= 8) sprints++; run = 0; }
@@ -2932,7 +2937,7 @@ function analyze(data, settings, opt) {
     const A = 0.6 * hiHR / 60 + 1.2 * fast / 60 + 1.5 * sprints;
     r.teN = round(5 * (1 - Math.exp(-A / 30)), 1);
     r.fastS = Math.round(fast); r.sprints = sprints;
-    r.label = labelRun(r, runs, fastSh, P);
+    r.label = labelRun(r, runs, fastSh, r.P);
     r.recH = Math.round(Math.min(96, 4 * Math.exp(0.62 * r.teA) + 5 * r.teN));
     // performance condition vs current level (COROS 'running performance' style, 80–120%)
     r.perfPct = r.vo2 && lvl ? Math.round(clamp(r.vo2.v / lvl * 100, 80, 120)) : null;
@@ -3050,15 +3055,15 @@ function analyze(data, settings, opt) {
     let tot = 0; const part = { low: 0, high: 0, ana: 0 };
     for (let i = 0; i < s.t.length; i++) {
       const h = s.h[i]; if (!h) continue;
-      const t = blockDt(s, i) / 60 * trimpOf(h, P.rest, P.max, female); tot += t;
-      if (s.gv[i] / 100 >= vmax) part.ana += t; else if (h >= 0.89 * P.lthr) part.high += t; else part.low += t;
+      const t = blockDt(s, i) / 60 * trimpOf(h, r.P.rest, r.P.max, female); tot += t;
+      if (s.gv[i] / 100 >= vmax) part.ana += t; else if (h >= 0.89 * r.P.lthr) part.high += t; else part.low += t;
     }
     const scale = tot > 0 ? r.load / tot : 0;
     if (tot > 0) { focus.low += part.low * scale; focus.high += part.high * scale; focus.ana += part.ana * scale; }
     else focus.low += r.load;
     for (let z = 0; z < 5; z++) dist[z] += r.zt[z];
   }
-  for (const o of others.filter(o => o.day > ref - 28 && o.day <= ref)) for (const b in o.hist) { const t = o.hist[b] / 60 * trimpOf(+b, P.rest, P.max, female); if (+b >= 0.89 * P.lthr) focus.high += t; else focus.low += t; }
+  for (const o of others.filter(o => o.day > ref - 28 && o.day <= ref)) { const Po = profAt(o.day); for (const b in o.hist) { const t = o.hist[b] / 60 * trimpOf(+b, Po.rest, Po.max, female); if (+b >= 0.89 * Po.lthr) focus.high += t; else focus.low += t; } }
   const fT = focus.low + focus.high + focus.ana;
   let focusMsg = null, focusShort = null;
   if (fT > 50) {
@@ -3988,7 +3993,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "c8f91344f6"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "91f05a72f7"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -3996,6 +4001,7 @@ const esc = s => String(s === null || s === undefined ? '' : s).replace(/[&<>"']
 const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)'];
 const TONE_COLOR = { good: 'var(--good)', ok: 'var(--accent)', warn: 'var(--warn)', bad: 'var(--bad)', muted: 'var(--muted)', info: 'var(--ink-2)' };
 const IC = {
+  photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="9" cy="10" r="1.7"/><path d="m20.5 15.5-4.8-4.8L7 19.4"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><path d="m7.8 7.6 4.2-4.1 4.2 4.1"/><path d="M8.5 11H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg>',
   good: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v.5"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
@@ -4055,7 +4061,7 @@ const LS = {
   set(k, v) { try { localStorage.setItem('rl:' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   del(k) { try { localStorage.removeItem('rl:' + k); } catch (e) { /* ignore */ } },
 };
-const COMPUTED = ['hrCovS', 'trimpHR', 'zt', 'ltb', 'vo2', 'ef', 'decoup', 'p3', 'p12', 'perf', 'gapR', 'lvl', 'load', 'teA', 'teN', 'fastS', 'sprints', 'label', 'recH', 'perfPct', 'prs', 'wx', 'efW'];
+const COMPUTED = ['hrCovS', 'trimpHR', 'zt', 'ltb', 'vo2', 'ef', 'decoup', 'p3', 'p12', 'perf', 'gapR', 'lvl', 'load', 'teA', 'teN', 'fastS', 'sprints', 'label', 'recH', 'perfPct', 'prs', 'wx', 'efW', 'P'];
 function cleanData(data) {
   const strip = o => { const c = Object.assign({}, o); for (const k of COMPUTED) delete c[k]; return c; };
   return Object.assign({}, data, { runs: data.runs.map(strip), others: (data.others || []).map(strip) });
@@ -4310,7 +4316,7 @@ const INFO = {
   fitAge: { t: '체력 나이', b: '내 VO2max가 몇 살의 평균과 같은지 보여줘요. 실제 나이보다 낮을수록 좋아요.', how: '애플 심폐 체력(없으면 러닝 VO2max)을 나이·성별 평균과 비교해요.', ref: '가민 \'피트니스 나이\'' },
   preds: { t: '레이스 예측', b: '지금 체력으로 각 거리를 최선을 다해 달렸을 때 예상 기록이에요.', how: '러닝 VO2max로 다니엘스 공식의 예상 기록을 구한 뒤, 하프·풀은 최근 6주 주간 거리와 최장 거리가 부족한 만큼 느리게 보정해요. 실제 기록은 코스·날씨·컨디션에 따라 ±2~3% 달라질 수 있어요.', ref: '가민·코로스 \'레이스 예측\'' },
   paces: { t: '훈련 페이스', b: '목적에 맞는 훈련 속도예요. 이지런은 이지 페이스, 템포런은 역치 페이스처럼 맞춰 달리면 효과가 커져요.', how: '러닝 VO2max의 일정 비율(회복 55~60%, 이지 62~70%, 역치 87~89%, 인터벌 96~99%, 반복 104~108%)에 해당하는 속도예요. 마라톤 페이스는 풀코스 예측 기록 기준이에요.', ref: '잭 다니엘스 VDOT 훈련 페이스' },
-  zones: { t: '심박 구간', b: '운동 강도를 5단계로 나눈 심박 범위예요. 1~2구간은 편한 유산소, 3구간은 템포, 4구간은 역치, 5구간은 최대 강도예요.', how: '설정에서 기준을 고를 수 있어요: 여유심박(기본) · 최대심박 · 젖산역치. 최대·안정·역치 심박은 기록에서 자동으로 찾고, 직접 입력할 수도 있어요.', ref: '가민·코로스 심박 구간' },
+  zones: { t: '심박 구간', b: '운동 강도를 5단계로 나눈 심박 범위예요. 1~2구간은 편한 유산소, 3구간은 템포, 4구간은 역치, 5구간은 최대 강도예요.', how: '설정에서 기준을 고를 수 있어요: 여유심박(기본) · 최대심박 · 젖산역치. 최대·안정·역치 심박은 기록에서 자동으로 찾고, 직접 입력할 수도 있어요. 구간은 기록이 쌓이면서 자동으로 바뀌고(안정 심박은 최근 30일, 최대 심박은 최근 1년, 젖산역치는 최근 6개월 기록), 지난 러닝은 그날까지의 기록으로 정한 그날의 구간으로 계산해요. 그래서 나중에 구간이 바뀌어도 지난 기록의 구간별 시간과 훈련 부하는 그대로예요. 설정에 숫자를 직접 넣으면 모든 기록에 그 값을 써요.', ref: '가민·코로스 심박 구간' },
   te: { t: '훈련 효과', b: '이번 운동이 체력에 준 효과를 0~5로 보여줘요. 2점대 유지, 3점대 향상, 4점대 크게 향상, 5는 과도해요.', how: '유산소 효과는 이 운동의 부하를 평소 체력(기초 체력)과 비교해 계산하고, 무산소 효과는 역치 이상 심박 시간, VO2max 속도 이상 달린 시간, 짧은 질주 횟수로 계산해요.', ref: '가민 \'트레이닝 이펙트\', 코로스 \'트레이닝 이펙트\'' },
   label: { t: '운동 유형 (주요 효과)', b: '이번 운동이 주로 어떤 능력을 키웠는지예요: 회복 · 기초 지구력 · 장거리 · 템포 · 역치 · VO2max · 무산소 · 스프린트.', how: '젖산역치 대비 심박 분포, 빠른 구간 시간, 무산소 효과, 운동 시간으로 분류해요.', ref: '가민 \'주요 효과\'' },
   decoup: { t: '심박 드리프트', b: '같은 속도로 달려도 후반에 심박이 얼마나 올랐는지예요. 5% 미만이면 그 거리에 대한 유산소 지구력이 충분하다는 뜻이에요.', how: '처음 10분을 뺀 구간을 앞뒤 절반으로 나눠 \'심박 1회당 속도\'를 비교해요. 일정한 페이스로 40분 이상 달린 운동만 계산해요.', ref: '트레이닝피크스 \'유산소 디커플링(Pa:Hr)\'' },
@@ -5367,103 +5373,144 @@ function cmpChart(runs) {
   }
 }
 
-// ===== ui_share.js — a run as a picture (or a few lines of text) for friends or social media; drawn on the device, nothing uploaded =====
-const SHARE_W = 1080, SHARE_H = 1350;
-function shareOpts() { return Object.assign({ style: 'card', route: 'trim', hr: true, wx: true, memo: true }, LS.get('shareOpts') || {}); }
+// ===== ui_share.js — a run as a picture with its route on a map (or a few lines of text); drawn on the device, nothing uploaded =====
+// The map comes from OpenStreetMap's tiles (they allow use in pictures, with their name shown); Kakao's tiles can't be put in a picture.
+const SHARE_W = 1080, SHARE_H = 1350, SH_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+function shareOpts() { return Object.assign({ route: 'trim', hr: true, wx: true, memo: true }, LS.get('shareOpts') || {}); }
 function shareSheet(id) {
   const r = runById(id); if (!r) return '';
   const o = shareOpts(), hasRoute = !!(r.route && r.route.la.length > 5);
   const seg = (k, items, cur) => '<div class="segctl">' + items.map(([v, n]) => '<button type="button" data-act="share-opt" data-k="' + k + '" data-v="' + v + '" aria-pressed="' + (cur === v) + '">' + n + '</button>').join('') + '</div>';
   const tog = (k, label, show) => show ? '<button type="button" class="chk" data-act="share-opt" data-k="' + k + '" data-v="' + (o[k] ? '0' : '1') + '" aria-pressed="' + !!o[k] + '">' + label + '</button>' : '';
-  return '<h2 style="margin-bottom:4px">기록 공유</h2><p class="small ink2">그림으로 만들어 카카오톡·인스타그램 등으로 보내요. 그림은 이 휴대폰에서 만들어지고 어디에도 올라가지 않아요.</p>' +
-    '<div class="share-prev' + (o.style === 'clear' ? ' clear' : '') + '"><canvas id="share-cv" width="' + SHARE_W + '" height="' + SHARE_H + '" role="img" aria-label="공유할 그림 미리보기"></canvas></div>' +
-    '<div class="share-opts"><div class="fl"><span class="xs muted">배경</span>' + seg('style', [['card', '카드'], ['clear', '투명 (사진 위에)']], o.style) + '</div>' +
-    (hasRoute ? '<div class="fl"><span class="xs muted">경로</span>' + seg('route', [['trim', '출발·도착 가리기'], ['full', '전체'], ['off', '숨기기']], o.route) + '</div>' : '') +
+  return '<h2 style="margin-bottom:4px">기록 공유</h2><p class="small ink2">경로와 지도가 담긴 그림으로 카카오톡·인스타그램 등에 보내거나 사진으로 저장해요. 그림은 이 휴대폰에서 만들어지고 어디에도 올라가지 않아요.</p>' +
+    '<div class="share-prev"><img id="share-img" alt="공유할 그림 미리보기"><canvas id="share-cv" width="' + SHARE_W + '" height="' + SHARE_H + '" hidden></canvas></div>' +
+    '<p class="xs muted" style="text-align:center">미리보기를 길게 눌러도 사진에 저장할 수 있어요.</p>' +
+    '<div class="share-opts">' + (hasRoute ? '<div class="fl"><span class="xs muted">경로와 지도</span>' + seg('route', [['trim', '출발·도착 가리기'], ['full', '전체'], ['off', '숨기기']], o.route) + '</div>' : '') +
     '<div class="chks">' + tog('hr', '심박', !!r.hrAvg) + tog('wx', '날씨', !!r.wx) + tog('memo', '메모', !!noteFor(r)) + '</div></div>' +
-    '<div class="row" style="gap:8px;margin-top:14px"><button type="button" class="btn ghost" data-act="share-text" data-v="' + r.id + '" style="flex:1">글로 복사</button><button type="button" class="btn" data-act="share-go" data-v="' + r.id + '" style="flex:1.5">' + IC.share + '그림 공유</button></div>' +
-    (hasRoute ? '<p class="xs muted" style="margin-top:10px">"출발·도착 가리기"는 집 위치가 드러나지 않게 경로의 처음과 끝 200m를 지워요. 지도는 넣지 않고 경로 모양만 그려요.</p>' : '');
+    '<div class="row" style="gap:8px;margin-top:14px"><button type="button" class="btn" data-act="share-go" data-v="' + r.id + '" style="flex:1">' + IC.share + '경로 공유</button><button type="button" class="btn secondary" data-act="share-save" data-v="' + r.id + '" style="flex:1">' + IC.photo + '사진으로 저장</button></div>' +
+    '<button type="button" class="btn ghost block" data-act="share-text" data-v="' + r.id + '" style="margin-top:8px">글로 복사</button>' +
+    '<p class="xs muted" style="margin-top:10px">사진으로 저장: 공유 창이 뜨면 "이미지 저장"을 눌러요.' + (hasRoute ? ' "출발·도착 가리기"는 집 위치가 드러나지 않게 경로의 처음과 끝 200m를 지워요. 지도 © OpenStreetMap 기여자.' : '') + '</p>';
 }
-function openShare(id) {
-  st.shareId = id; openSheet(shareSheet(id));
-  const draw = () => { const r = runById(id); if (r) drawShareCard($('#share-cv'), r, shareOpts()); };
-  draw();
-  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('600 200px "Barlow Condensed"'), document.fonts.load('700 40px "Noto Sans KR"')]).then(draw, () => {});
-}
+function openShare(id) { st.shareId = id; openSheet(shareSheet(id)); renderShare(id); }
 function shareOpt(k, v) {
-  const o = shareOpts(); o[k] = k === 'style' || k === 'route' ? v : v === '1';
+  const o = shareOpts(); o[k] = k === 'route' ? v : v === '1';
   LS.set('shareOpts', o); if (st.shareId) openShare(st.shareId);
 }
-const SH_KO = '"Apple SD Gothic Neo", "Noto Sans KR", -apple-system, "Malgun Gothic", sans-serif', SH_NUM = '"Barlow Condensed", "SF Pro Display", "Arial Narrow", sans-serif';
-function drawShareCard(cv, r, o) {
-  if (!cv || !cv.getContext) return;
-  const g = cv.getContext('2d'), W = SHARE_W, H = SHARE_H, P = 84, clear = o.style === 'clear';
-  g.clearRect(0, 0, W, H);
-  if (!clear) {
-    const bg = g.createLinearGradient(0, 0, W * 0.4, H); bg.addColorStop(0, '#24216b'); bg.addColorStop(0.55, '#14143a'); bg.addColorStop(1, '#0c0d12');
-    g.fillStyle = bg; g.fillRect(0, 0, W, H);
-    const glow = g.createRadialGradient(W * 0.85, H * 0.12, 10, W * 0.85, H * 0.12, W * 0.7); glow.addColorStop(0, 'rgba(143,141,255,.35)'); glow.addColorStop(1, 'rgba(143,141,255,0)');
-    g.fillStyle = glow; g.fillRect(0, 0, W, H);
+// ---- map tiles under the route ----
+const SH_TILES = new Map();
+function shTile(url) {
+  if (!SH_TILES.has(url)) SH_TILES.set(url, new Promise(res => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => res(null); im.src = url; }));
+  return SH_TILES.get(url);
+}
+function shPoints(r, o) {
+  const rt = r.route; if (!rt || rt.la.length <= 5 || o.route === 'off') return [];
+  const total = rt.d && rt.d.length ? rt.d[rt.d.length - 1] : 0, cut = o.route === 'trim' ? 200 : 0, pts = [];
+  for (let i = 0; i < rt.la.length; i++) if (!rt.d || (rt.d[i] >= cut && rt.d[i] <= total - cut)) pts.push(i);
+  return pts.length >= 3 ? pts : [];
+}
+// which tiles cover the route at the largest zoom that fits the panel, and where each point lands
+function shMapPlan(r, pts, box) {
+  if (!pts.length) return null;
+  const rt = r.route, X = (lon, z) => (lon + 180) / 360 * 256 * 2 ** z, Y = (lat, z) => { const s = Math.sin(lat * Math.PI / 180); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * 2 ** z; };
+  let z = 17, x0, x1, y0, y1;
+  for (; z >= 3; z--) {
+    x0 = Infinity; x1 = -Infinity; y0 = Infinity; y1 = -Infinity;
+    for (const i of pts) { const x = X(rt.lo[i], z), y = Y(rt.la[i], z); if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 - x0 <= box.w - 130 && y1 - y0 <= box.h - 110) break;
   }
+  const wx0 = (x0 + x1) / 2 - box.w / 2, wy0 = (y0 + y1) / 2 - box.h / 2, n = 2 ** z, tiles = [];
+  for (let tx = Math.floor(wx0 / 256); tx <= Math.floor((wx0 + box.w) / 256); tx++) for (let ty = Math.floor(wy0 / 256); ty <= Math.floor((wy0 + box.h) / 256); ty++) {
+    if (ty < 0 || ty >= n) continue;
+    tiles.push({ url: SH_TILE.replace('{z}', z).replace('{x}', ((tx % n) + n) % n).replace('{y}', ty), dx: box.x + tx * 256 - wx0, dy: box.y + ty * 256 - wy0 });
+  }
+  return { z, tiles, px: i => box.x + X(rt.lo[i], z) - wx0, py: i => box.y + Y(rt.la[i], z) - wy0 };
+}
+// draw now (route on a plain panel), then again with the map once its tiles arrive
+async function renderShare(id) {
+  const r = runById(id), cv = $('#share-cv'); if (!r || !cv) return;
+  const tok = (st.shareTok = (st.shareTok || 0) + 1), o = shareOpts();
+  const lay = drawShareCard(cv, r, o, null); await shPreview(cv, tok);
+  if (!lay.plan || TARGET !== 'web' || !lay.plan.tiles.length) return;
+  const imgs = await Promise.race([Promise.all(lay.plan.tiles.map(t => shTile(t.url))), new Promise(res => setTimeout(() => res(null), 8000))]);
+  if (tok !== st.shareTok || !imgs || !imgs.some(Boolean) || !cv.isConnected) return;
+  drawShareCard(cv, r, o, imgs);
+  try { cv.getContext('2d').getImageData(0, 0, 1, 1); } catch (e) { drawShareCard(cv, r, o, null); } // a tile without permission: keep the picture without the map
+  await shPreview(cv, tok);
+}
+async function shPreview(cv, tok) {
+  const img = $('#share-img'); if (!img) return;
+  const blob = await new Promise(res => { try { cv.toBlob(res, 'image/png'); } catch (e) { res(null); } });
+  if (!blob || tok !== st.shareTok) return;
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  const url = URL.createObjectURL(blob); img.dataset.url = url; img.src = url;
+}
+const SH_KO = '"Apple SD Gothic Neo", "Noto Sans KR", -apple-system, "Malgun Gothic", sans-serif', SH_NUM = '"Barlow Condensed", "SF Pro Display", "Arial Narrow", sans-serif';
+// SOOM's mark as in the app's header: the pace-coloured line from a red ring to a green dot
+function shMark(g, x, y, h) {
+  const path = document.querySelector('.top .mark path'), d = path && path.getAttribute('d'); if (!d || typeof Path2D === 'undefined') return 0;
+  const k = h / 307; g.save(); g.translate(x - 130 * k, y - 357 * k); g.scale(k, k);
+  const gr = g.createLinearGradient(200, 0, 812, 0); gr.addColorStop(0, '#E5483B'); gr.addColorStop(0.5, '#F2A91F'); gr.addColorStop(1, '#2DAE5F');
+  g.strokeStyle = gr; g.lineWidth = 58; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(new Path2D(d));
+  const bg = '#211f62';
+  g.fillStyle = bg; g.beginPath(); g.arc(200, 540, 46, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#E5483B'; g.lineWidth = 19; g.beginPath(); g.arc(200, 540, 29, 0, Math.PI * 2); g.fill(); g.stroke();
+  g.fillStyle = bg; g.beginPath(); g.arc(812, 490, 64, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#2DAE5F'; g.beginPath(); g.arc(812, 490, 46, 0, Math.PI * 2); g.fill();
+  g.restore();
+  return 752 * k;
+}
+function drawShareCard(cv, r, o, tiles) {
+  const g = cv.getContext('2d'), W = SHARE_W, H = SHARE_H, P = 84;
+  g.clearRect(0, 0, W, H);
+  const bg = g.createLinearGradient(0, 0, W * 0.4, H); bg.addColorStop(0, '#24216b'); bg.addColorStop(0.55, '#14143a'); bg.addColorStop(1, '#0c0d12');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * 0.85, H * 0.1, 10, W * 0.85, H * 0.1, W * 0.7); glow.addColorStop(0, 'rgba(143,141,255,.32)'); glow.addColorStop(1, 'rgba(143,141,255,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
   const ink = '#ffffff', sub = 'rgba(255,255,255,.72)';
-  g.shadowColor = clear ? 'rgba(0,0,0,.45)' : 'transparent'; g.shadowBlur = clear ? 14 : 0;
   const text = (s, x, y, font, color, align) => { g.font = font; g.fillStyle = color || ink; g.textAlign = align || 'left'; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); return g.measureText(s).width; };
   const fit = (s, font, maxW) => { g.font = font; if (g.measureText(s).width <= maxW) return s; let t = s; while (t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; };
-  // header: SOOM and when
-  g.lineWidth = 7; g.lineCap = 'round'; g.strokeStyle = clear ? ink : '#8f8dff';
-  g.beginPath(); g.moveTo(P, 118); g.bezierCurveTo(P + 22, 78, P + 40, 150, P + 62, 112); g.bezierCurveTo(P + 76, 90, P + 88, 104, P + 98, 108); g.stroke();
-  text('SOOM', P + 120, 132, '800 46px ' + SH_KO, ink);
-  text(fmtDay(r.day) + ' · ' + timeKo(r.start, r.off), W - P, 128, '600 36px ' + SH_KO, sub, 'right');
-  // the route's shape (no map), pace-coloured on the card, white on the clear style
-  const rt = r.route, total = rt && rt.d && rt.d.length ? rt.d[rt.d.length - 1] : 0;
-  let pts = [];
-  if (rt && rt.la.length > 5 && o.route !== 'off') {
-    const cut = o.route === 'trim' ? 200 : 0;
-    for (let i = 0; i < rt.la.length; i++) if (rt.d[i] >= cut && rt.d[i] <= total - cut) pts.push(i);
-    if (pts.length < 3) pts = [];
-  }
-  // layout from the bottom up: footer, numbers, distance, badges, memo; the route gets the space that is left
+  const rrect = (x, y, w, h, rad) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, rad); else g.rect(x, y, w, h); };
+  // header: SOOM's mark and when
+  const mw = shMark(g, P, 92, 40);
+  text('SOOM', P + (mw ? mw + 22 : 0), 128, '800 46px ' + SH_KO, ink);
+  text(fmtDay(r.day) + ' · ' + timeKo(r.start, r.off), W - P, 128, '600 34px ' + SH_KO, sub, 'right');
+  // layout from the bottom up: footer, numbers, distance, badges, memo; the map gets the space that is left
   const memo = o.memo ? noteFor(r) : '', L0 = LABELS[r.label], badges = [];
   if (L0) badges.push(L0.name);
   if (r.prs && r.prs.length) badges.push('개인 기록 ' + r.prs[0]);
   const c0 = typeof crs === 'function' ? crs().byRun.get(r.id) : null, spot = c0 ? courseSpot(c0, r.id) : null;
   if (spot && spot.rank === 1 && spot.n >= 3) badges.push('이 코스 최고 기록');
   const footY = H - 62, valY = H - 136, labY = valY - 80, distY = labY - 74, badgeY = distY - 214, memoY = (badges.length ? badgeY : distY - 150) - 76;
-  const top = 190, boxH = Math.max(260, (memo ? memoY - 64 : badges.length ? badgeY - 74 : distY - 230) - top);
-  if (pts.length) {
-    const kx = Math.cos(rt.la[0] * Math.PI / 180); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const i of pts) { const x = rt.lo[i] * kx, y = rt.la[i]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    const bw = W - 2 * P - 40, sc = Math.min(bw / Math.max(1e-9, x1 - x0), (boxH - 40) / Math.max(1e-9, y1 - y0));
-    const ox = (W - (x1 - x0) * sc) / 2, oy = top + (boxH - (y1 - y0) * sc) / 2, X = i => ox + (rt.lo[i] * kx - x0) * sc, Y = i => oy + (y1 - rt.la[i]) * sc;
-    const sp = clear ? null : routeSpeeds(r), rng = sp ? speedRange(sp) : null, span = rng ? Math.max(0.05, rng[1] - rng[0]) : 1;
+  const top = 178, box = { x: P, y: top, w: W - 2 * P, h: Math.max(300, (memo ? memoY - 66 : badges.length ? badgeY - 76 : distY - 232) - top) };
+  const pts = shPoints(r, o), plan = shMapPlan(r, pts, box);
+  if (plan) {
+    g.save(); rrect(box.x, box.y, box.w, box.h, 34); g.clip();
+    g.fillStyle = '#e9e6df'; g.fillRect(box.x, box.y, box.w, box.h);
+    if (tiles) plan.tiles.forEach((t, i) => { if (tiles[i]) g.drawImage(tiles[i], t.dx, t.dy, 256, 256); });
+    else { g.strokeStyle = 'rgba(0,0,0,.05)'; g.lineWidth = 2; for (let x = box.x; x < box.x + box.w; x += 64) { g.beginPath(); g.moveTo(x, box.y); g.lineTo(x, box.y + box.h); g.stroke(); } for (let y = box.y; y < box.y + box.h; y += 64) { g.beginPath(); g.moveTo(box.x, y); g.lineTo(box.x + box.w, y); g.stroke(); } }
+    // route: white casing, then pace colours (slow red → fast green, as on the app's map)
+    const sp = routeSpeeds(r), rng = speedRange(sp), span = Math.max(0.05, rng[1] - rng[0]);
     g.lineJoin = 'round'; g.lineCap = 'round';
-    g.shadowColor = clear ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.35)'; g.shadowBlur = 18;
-    g.strokeStyle = clear ? ink : 'rgba(255,255,255,.18)'; g.lineWidth = clear ? 12 : 22;
-    g.beginPath(); pts.forEach((i, k) => k ? g.lineTo(X(i), Y(i)) : g.moveTo(X(i), Y(i))); g.stroke();
-    g.shadowBlur = 0;
-    if (!clear) {
-      g.lineWidth = 12;
-      for (let k = 1; k < pts.length; k++) { const i = pts[k], j = pts[k - 1]; g.strokeStyle = paceRGB((sp[i] - rng[0]) / span); g.beginPath(); g.moveTo(X(j), Y(j)); g.lineTo(X(i), Y(i)); g.stroke(); }
-    }
+    g.shadowColor = 'rgba(0,0,0,.25)'; g.shadowBlur = 10; g.strokeStyle = '#ffffff'; g.lineWidth = 20;
+    g.beginPath(); pts.forEach((i, k) => k ? g.lineTo(plan.px(i), plan.py(i)) : g.moveTo(plan.px(i), plan.py(i))); g.stroke();
+    g.shadowBlur = 0; g.lineWidth = 11;
+    for (let k = 1; k < pts.length; k++) { const i = pts[k], j = pts[k - 1]; g.strokeStyle = paceRGB((sp[i] - rng[0]) / span); g.beginPath(); g.moveTo(plan.px(j), plan.py(j)); g.lineTo(plan.px(i), plan.py(i)); g.stroke(); }
     if (o.route === 'full') {
       const a = pts[0], b = pts[pts.length - 1];
-      g.fillStyle = '#34c759'; g.strokeStyle = '#ffffff'; g.lineWidth = 6; g.beginPath(); g.arc(X(a), Y(a), 15, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.fillStyle = '#12141b'; g.fillRect(X(b) - 13, Y(b) - 13, 26, 26); g.strokeRect(X(b) - 13, Y(b) - 13, 26, 26);
+      g.fillStyle = '#34c759'; g.strokeStyle = '#ffffff'; g.lineWidth = 6; g.beginPath(); g.arc(plan.px(a), plan.py(a), 15, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#12141b'; g.fillRect(plan.px(b) - 13, plan.py(b) - 13, 26, 26); g.strokeRect(plan.px(b) - 13, plan.py(b) - 13, 26, 26);
     }
-    g.shadowColor = clear ? 'rgba(0,0,0,.45)' : 'transparent'; g.shadowBlur = clear ? 14 : 0;
+    if (tiles) { g.font = '600 22px ' + SH_KO; const at = '© OpenStreetMap', aw = g.measureText(at).width + 22; g.fillStyle = 'rgba(255,255,255,.82)'; g.fillRect(box.x + box.w - aw, box.y + box.h - 36, aw, 36); text(at, box.x + box.w - 11, box.y + box.h - 11, '600 22px ' + SH_KO, '#3c4150', 'right'); }
+    g.restore();
   } else {
-    const L = LABELS[r.label];
-    if (L) text(L.name, W / 2, top + boxH / 2 + 30, '800 96px ' + SH_KO, 'rgba(255,255,255,.9)', 'center');
-    text(r.indoor ? '실내 달리기' : '러닝', W / 2, top + boxH / 2 + 100, '600 40px ' + SH_KO, sub, 'center');
+    if (L0) text(L0.name, W / 2, box.y + box.h / 2 + 30, '800 96px ' + SH_KO, 'rgba(255,255,255,.9)', 'center');
+    text(r.indoor ? '실내 달리기' : '러닝', W / 2, box.y + box.h / 2 + 100, '600 40px ' + SH_KO, sub, 'center');
   }
   // memo and badges
   if (memo) text(fit('“' + memo + '”', '600 44px ' + SH_KO, W - 2 * P), P, memoY, '600 44px ' + SH_KO, ink);
   if (badges.length) {
     g.font = '700 32px ' + SH_KO; let bx = P;
-    for (const b of badges) {
-      const w = g.measureText(b).width + 40; if (bx + w > W - P) break;
-      g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); if (g.roundRect) g.roundRect(bx, badgeY - 40, w, 54, 27); else g.rect(bx, badgeY - 40, w, 54); g.fill();
-      text(b, bx + 20, badgeY - 3, '700 32px ' + SH_KO, ink); bx += w + 14;
-    }
+    for (const b of badges) { const w = g.measureText(b).width + 40; if (bx + w > W - P) break; g.fillStyle = 'rgba(255,255,255,.14)'; rrect(bx, badgeY - 40, w, 54, 27); g.fill(); text(b, bx + 20, badgeY - 3, '700 32px ' + SH_KO, ink); bx += w + 14; }
   }
   // the numbers (shrunk to fit their column when a font runs wide)
   const sizeFor = (str, weight, size, maxW, fam) => { g.font = weight + ' ' + size + 'px ' + fam; let sz = size; while (sz > 36 && g.measureText(str).width > maxW) { sz -= 4; g.font = weight + ' ' + sz + 'px ' + fam; } return sz; };
@@ -5484,8 +5531,9 @@ function drawShareCard(cv, r, o) {
   if (!r.indoor && r.up) foot.push('오르막 ' + r.up + 'm');
   if (r.cad) foot.push('케이던스 ' + r.cad);
   if (foot.length) text(fit(foot.join('   ·   '), '600 30px ' + SH_KO, W - 2 * P), P, footY, '600 30px ' + SH_KO, sub);
-  g.shadowBlur = 0;
+  return { plan };
 }
+// share (to an app) or save (to Photos: the share window's "이미지 저장") — both go through the phone's share window
 async function shareGo(id) {
   const r = runById(id), cv = $('#share-cv'); if (!r || !cv) return;
   const blob = await new Promise(res => { try { cv.toBlob(res, 'image/png'); } catch (e) { res(null); } });
@@ -5499,7 +5547,7 @@ function shareTextOf(r) {
   lines.push(kmTxt(r.dist, 2) + 'km · ' + fmtDur(r.dur) + ' · ' + pace + '/km' + (o.hr && r.hrAvg ? ' · 평균 심박 ' + Math.round(r.hrAvg) : ''));
   if (o.wx && r.wx) lines.push('날씨 ' + Math.round(r.wx.t) + '°' + (isNum(r.wx.rh) ? ' · 습도 ' + r.wx.rh + '%' : ''));
   if (o.memo && noteFor(r)) lines.push('"' + noteFor(r) + '"');
-  lines.push('SOOM으로 분석했어요');
+  lines.push('With SOOM');
   return lines.join('\n');
 }
 async function shareText(id) {
@@ -5769,10 +5817,11 @@ function vRun(id) {
   if (iv) h += '<section class="card"><div class="card-head"><h2>인터벌 자동 감지 ' + infoBtn('intervals') + '</h2><span class="xs muted">' + iv.length + '회</span></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>회</th><th>거리</th><th>시간</th><th>페이스</th><th>평균/최고 심박</th><th>휴식</th></tr></thead><tbody>' +
     iv.map(x => '<tr><td>' + x.n + '</td><td>' + Math.round(x.d) + 'm</td><td>' + fmtDur(x.t) + '</td><td>' + fmtPace(x.pace) + '</td><td>' + (x.hr ? x.hr + ' / ' + x.hrMax : '–') + '</td><td>' + (x.rest ? fmtDur(x.rest) : '–') + '</td></tr>').join('') + '</tbody></table></div></section>';
   if (r.zt && sum(r.zt) > 0) {
-    const tot = sum(r.zt), z = M.P.zones;
-    h += '<section class="card"><div class="card-head"><h2>심박 구간 ' + infoBtn('zones') + '</h2><span class="xs muted">' + methodName(M.P.method) + ' 기준</span></div>' +
+    const tot = sum(r.zt), PZ = r.P || M.P, z = PZ.zones;
+    h += '<section class="card"><div class="card-head"><h2>심박 구간 ' + infoBtn('zones') + '</h2><span class="xs muted">' + (r.day < M.today ? '이날 기준 · ' : '') + methodName(PZ.method) + '</span></div>' +
       [4, 3, 2, 1, 0].map(i => hbar('Z' + (i + 1) + ' ' + ZONE_NAMES[i], r.zt[i], tot, ZC[i], (r.zt[i] < 60 ? (r.zt[i] ? '1분 미만' : '0분') : fmtDurKo(r.zt[i])) + ' · ' + Math.round(r.zt[i] / tot * 100) + '%')).join('') +
-      '<p class="xs muted" style="margin-top:6px">' + [0, 1, 2, 3, 4].map(i => 'Z' + (i + 1) + ' ' + (i === 0 ? '~' + (z[1] - 1) : i === 4 ? z[4] + '~' : z[i] + '–' + (z[i + 1] - 1))).join(' · ') + ' bpm</p></section>';
+      '<p class="xs muted" style="margin-top:6px">' + [0, 1, 2, 3, 4].map(i => 'Z' + (i + 1) + ' ' + (i === 0 ? '~' + (z[1] - 1) : i === 4 ? z[4] + '~' : z[i] + '–' + (z[i + 1] - 1))).join(' · ') + ' bpm' +
+      (r.day < M.today ? '<br>이 러닝 날까지의 기록으로 정한 구간이에요 (최대 ' + PZ.max + ' · 안정 ' + PZ.rest + ' · 젖산역치 ' + PZ.lthr + ' bpm).' : '') + '</p></section>';
   }
   const vr = r.vo && r.sl ? r.vo / (r.sl * 100) * 100 : null;
   if (r.cad || r.gc || r.vo) h += '<section class="card"><div class="card-head"><h2>러닝 폼 ' + infoBtn('dynamics') + '</h2></div>' + dynGauge('cad', r.cad) + dynGauge('gc', r.gc) + dynGauge('vo', r.vo) + dynGauge('vr', vr) +
@@ -5818,7 +5867,7 @@ function runChart(r) {
     lineChart(el, Object.assign(base, { invert: true, yMin: Math.max(120, lo - 15), yMax: Math.min(900, hi + 20), yFmt: fmtPace, label: '페이스',
       series: [{ name: '페이스', y: p.map(v => v === null || v < lo - 15 || v > hi + 20 ? null : v), color: 'var(--s1)', fmt: fmtPace, area: true }].concat(g ? [{ name: '경사 보정', y: g.map(v => v === null || v < lo - 15 || v > hi + 20 ? null : v), color: 'var(--s2)', width: 1.5, fmt: fmtPace }] : []) }));
   } else if (k === 'hr') {
-    const z = st.M.P.zones, hr = s.h.map(v => v || null);
+    const z = (r.P || st.M.P).zones, hr = s.h.map(v => v || null);
     const zs = [0, 1, 2, 3, 4].map(i => ({ from: i === 0 ? 0 : z[i], to: i === 4 ? 260 : z[i + 1], color: ZC[i], label: 'Z' + (i + 1) + ' ' + ZONE_NAMES[i] }));
     lineChart(el, Object.assign(base, { zones: zs, mr: 50, label: '심박', series: [{ name: '심박', y: hr, color: 'var(--z5)', fmt: v => Math.round(v) + ' bpm' }] }));
   } else if (k === 'ele') lineChart(el, Object.assign(base, { label: '고도', series: [{ name: '고도', y: s.e.map(v => v / 10), color: 'var(--ink-2)', area: true, fmt: v => v.toFixed(0) + ' m' }], yFmt: v => Math.round(v) + 'm' }));
@@ -6330,7 +6379,7 @@ document.addEventListener('click', e => {
     case 'cmp-open': go('cmp:' + v); break;
     case 'share': openShare(v); break;
     case 'share-opt': shareOpt(a.dataset.k, v); break;
-    case 'share-go': shareGo(v); break;
+    case 'share-go': case 'share-save': shareGo(v); break;
     case 'share-text': shareText(v); break;
     case 'cchart': st.crsChart = v; document.querySelectorAll('[data-act="cchart"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); { const c = crsFind(st.view.slice(7)); if (c) crsChart(c); } break;
     case 'cmpchart': st.cmpChart = v; document.querySelectorAll('[data-act="cmpchart"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); { const ids = st.view.slice(4).split(','), runs = [...new Set(ids)].map(runById).filter(Boolean).sort((a, b) => a.start - b.start).slice(0, 4); if (runs.length >= 2) cmpChart(runs); } break;
