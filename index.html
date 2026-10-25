@@ -551,6 +551,17 @@ details.more[open] summary::after { content: "접기"; }
 .nag { border: 1px solid var(--line); }
 .nag .ic { flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); }
 .nag .ic svg { width: 17px; height: 17px; }
+
+/* ---- sharing a run ---- */
+.share-prev { margin: 12px auto 4px; width: min(100%, 300px); aspect-ratio: 4 / 5; border-radius: 14px; overflow: hidden; background: var(--surface-2); box-shadow: var(--shadow); }
+.share-prev.clear { background-color: #8a8f9c; background-image: linear-gradient(45deg, #9aa0ad 25%, transparent 25%, transparent 75%, #9aa0ad 75%), linear-gradient(45deg, #9aa0ad 25%, transparent 25%, transparent 75%, #9aa0ad 75%); background-size: 24px 24px; background-position: 0 0, 12px 12px; }
+.share-prev canvas { width: 100%; height: 100%; display: block; }
+.share-opts { display: grid; gap: 10px; margin-top: 12px; }
+.share-opts .fl { display: grid; gap: 4px; }
+.chks { display: flex; gap: 8px; flex-wrap: wrap; }
+.chk { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 7px 14px; font-size: 13px; }
+.chk[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.chk[aria-pressed="true"]::before { content: "✓ "; }
 </style>
 <div id="app">
   <header class="top">
@@ -3977,7 +3988,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "504ea83a67"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "c8f91344f6"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -3985,6 +3996,7 @@ const esc = s => String(s === null || s === undefined ? '' : s).replace(/[&<>"']
 const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)'];
 const TONE_COLOR = { good: 'var(--good)', ok: 'var(--accent)', warn: 'var(--warn)', bad: 'var(--bad)', muted: 'var(--muted)', info: 'var(--ink-2)' };
 const IC = {
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><path d="m7.8 7.6 4.2-4.1 4.2 4.1"/><path d="M8.5 11H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg>',
   good: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v.5"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
   bad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5v.5"/></svg>',
@@ -5355,6 +5367,149 @@ function cmpChart(runs) {
   }
 }
 
+// ===== ui_share.js — a run as a picture (or a few lines of text) for friends or social media; drawn on the device, nothing uploaded =====
+const SHARE_W = 1080, SHARE_H = 1350;
+function shareOpts() { return Object.assign({ style: 'card', route: 'trim', hr: true, wx: true, memo: true }, LS.get('shareOpts') || {}); }
+function shareSheet(id) {
+  const r = runById(id); if (!r) return '';
+  const o = shareOpts(), hasRoute = !!(r.route && r.route.la.length > 5);
+  const seg = (k, items, cur) => '<div class="segctl">' + items.map(([v, n]) => '<button type="button" data-act="share-opt" data-k="' + k + '" data-v="' + v + '" aria-pressed="' + (cur === v) + '">' + n + '</button>').join('') + '</div>';
+  const tog = (k, label, show) => show ? '<button type="button" class="chk" data-act="share-opt" data-k="' + k + '" data-v="' + (o[k] ? '0' : '1') + '" aria-pressed="' + !!o[k] + '">' + label + '</button>' : '';
+  return '<h2 style="margin-bottom:4px">기록 공유</h2><p class="small ink2">그림으로 만들어 카카오톡·인스타그램 등으로 보내요. 그림은 이 휴대폰에서 만들어지고 어디에도 올라가지 않아요.</p>' +
+    '<div class="share-prev' + (o.style === 'clear' ? ' clear' : '') + '"><canvas id="share-cv" width="' + SHARE_W + '" height="' + SHARE_H + '" role="img" aria-label="공유할 그림 미리보기"></canvas></div>' +
+    '<div class="share-opts"><div class="fl"><span class="xs muted">배경</span>' + seg('style', [['card', '카드'], ['clear', '투명 (사진 위에)']], o.style) + '</div>' +
+    (hasRoute ? '<div class="fl"><span class="xs muted">경로</span>' + seg('route', [['trim', '출발·도착 가리기'], ['full', '전체'], ['off', '숨기기']], o.route) + '</div>' : '') +
+    '<div class="chks">' + tog('hr', '심박', !!r.hrAvg) + tog('wx', '날씨', !!r.wx) + tog('memo', '메모', !!noteFor(r)) + '</div></div>' +
+    '<div class="row" style="gap:8px;margin-top:14px"><button type="button" class="btn ghost" data-act="share-text" data-v="' + r.id + '" style="flex:1">글로 복사</button><button type="button" class="btn" data-act="share-go" data-v="' + r.id + '" style="flex:1.5">' + IC.share + '그림 공유</button></div>' +
+    (hasRoute ? '<p class="xs muted" style="margin-top:10px">"출발·도착 가리기"는 집 위치가 드러나지 않게 경로의 처음과 끝 200m를 지워요. 지도는 넣지 않고 경로 모양만 그려요.</p>' : '');
+}
+function openShare(id) {
+  st.shareId = id; openSheet(shareSheet(id));
+  const draw = () => { const r = runById(id); if (r) drawShareCard($('#share-cv'), r, shareOpts()); };
+  draw();
+  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('600 200px "Barlow Condensed"'), document.fonts.load('700 40px "Noto Sans KR"')]).then(draw, () => {});
+}
+function shareOpt(k, v) {
+  const o = shareOpts(); o[k] = k === 'style' || k === 'route' ? v : v === '1';
+  LS.set('shareOpts', o); if (st.shareId) openShare(st.shareId);
+}
+const SH_KO = '"Apple SD Gothic Neo", "Noto Sans KR", -apple-system, "Malgun Gothic", sans-serif', SH_NUM = '"Barlow Condensed", "SF Pro Display", "Arial Narrow", sans-serif';
+function drawShareCard(cv, r, o) {
+  if (!cv || !cv.getContext) return;
+  const g = cv.getContext('2d'), W = SHARE_W, H = SHARE_H, P = 84, clear = o.style === 'clear';
+  g.clearRect(0, 0, W, H);
+  if (!clear) {
+    const bg = g.createLinearGradient(0, 0, W * 0.4, H); bg.addColorStop(0, '#24216b'); bg.addColorStop(0.55, '#14143a'); bg.addColorStop(1, '#0c0d12');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const glow = g.createRadialGradient(W * 0.85, H * 0.12, 10, W * 0.85, H * 0.12, W * 0.7); glow.addColorStop(0, 'rgba(143,141,255,.35)'); glow.addColorStop(1, 'rgba(143,141,255,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  }
+  const ink = '#ffffff', sub = 'rgba(255,255,255,.72)';
+  g.shadowColor = clear ? 'rgba(0,0,0,.45)' : 'transparent'; g.shadowBlur = clear ? 14 : 0;
+  const text = (s, x, y, font, color, align) => { g.font = font; g.fillStyle = color || ink; g.textAlign = align || 'left'; g.textBaseline = 'alphabetic'; g.fillText(s, x, y); return g.measureText(s).width; };
+  const fit = (s, font, maxW) => { g.font = font; if (g.measureText(s).width <= maxW) return s; let t = s; while (t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; };
+  // header: SOOM and when
+  g.lineWidth = 7; g.lineCap = 'round'; g.strokeStyle = clear ? ink : '#8f8dff';
+  g.beginPath(); g.moveTo(P, 118); g.bezierCurveTo(P + 22, 78, P + 40, 150, P + 62, 112); g.bezierCurveTo(P + 76, 90, P + 88, 104, P + 98, 108); g.stroke();
+  text('SOOM', P + 120, 132, '800 46px ' + SH_KO, ink);
+  text(fmtDay(r.day) + ' · ' + timeKo(r.start, r.off), W - P, 128, '600 36px ' + SH_KO, sub, 'right');
+  // the route's shape (no map), pace-coloured on the card, white on the clear style
+  const rt = r.route, total = rt && rt.d && rt.d.length ? rt.d[rt.d.length - 1] : 0;
+  let pts = [];
+  if (rt && rt.la.length > 5 && o.route !== 'off') {
+    const cut = o.route === 'trim' ? 200 : 0;
+    for (let i = 0; i < rt.la.length; i++) if (rt.d[i] >= cut && rt.d[i] <= total - cut) pts.push(i);
+    if (pts.length < 3) pts = [];
+  }
+  // layout from the bottom up: footer, numbers, distance, badges, memo; the route gets the space that is left
+  const memo = o.memo ? noteFor(r) : '', L0 = LABELS[r.label], badges = [];
+  if (L0) badges.push(L0.name);
+  if (r.prs && r.prs.length) badges.push('개인 기록 ' + r.prs[0]);
+  const c0 = typeof crs === 'function' ? crs().byRun.get(r.id) : null, spot = c0 ? courseSpot(c0, r.id) : null;
+  if (spot && spot.rank === 1 && spot.n >= 3) badges.push('이 코스 최고 기록');
+  const footY = H - 62, valY = H - 136, labY = valY - 80, distY = labY - 74, badgeY = distY - 214, memoY = (badges.length ? badgeY : distY - 150) - 76;
+  const top = 190, boxH = Math.max(260, (memo ? memoY - 64 : badges.length ? badgeY - 74 : distY - 230) - top);
+  if (pts.length) {
+    const kx = Math.cos(rt.la[0] * Math.PI / 180); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const i of pts) { const x = rt.lo[i] * kx, y = rt.la[i]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    const bw = W - 2 * P - 40, sc = Math.min(bw / Math.max(1e-9, x1 - x0), (boxH - 40) / Math.max(1e-9, y1 - y0));
+    const ox = (W - (x1 - x0) * sc) / 2, oy = top + (boxH - (y1 - y0) * sc) / 2, X = i => ox + (rt.lo[i] * kx - x0) * sc, Y = i => oy + (y1 - rt.la[i]) * sc;
+    const sp = clear ? null : routeSpeeds(r), rng = sp ? speedRange(sp) : null, span = rng ? Math.max(0.05, rng[1] - rng[0]) : 1;
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.shadowColor = clear ? 'rgba(0,0,0,.45)' : 'rgba(0,0,0,.35)'; g.shadowBlur = 18;
+    g.strokeStyle = clear ? ink : 'rgba(255,255,255,.18)'; g.lineWidth = clear ? 12 : 22;
+    g.beginPath(); pts.forEach((i, k) => k ? g.lineTo(X(i), Y(i)) : g.moveTo(X(i), Y(i))); g.stroke();
+    g.shadowBlur = 0;
+    if (!clear) {
+      g.lineWidth = 12;
+      for (let k = 1; k < pts.length; k++) { const i = pts[k], j = pts[k - 1]; g.strokeStyle = paceRGB((sp[i] - rng[0]) / span); g.beginPath(); g.moveTo(X(j), Y(j)); g.lineTo(X(i), Y(i)); g.stroke(); }
+    }
+    if (o.route === 'full') {
+      const a = pts[0], b = pts[pts.length - 1];
+      g.fillStyle = '#34c759'; g.strokeStyle = '#ffffff'; g.lineWidth = 6; g.beginPath(); g.arc(X(a), Y(a), 15, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#12141b'; g.fillRect(X(b) - 13, Y(b) - 13, 26, 26); g.strokeRect(X(b) - 13, Y(b) - 13, 26, 26);
+    }
+    g.shadowColor = clear ? 'rgba(0,0,0,.45)' : 'transparent'; g.shadowBlur = clear ? 14 : 0;
+  } else {
+    const L = LABELS[r.label];
+    if (L) text(L.name, W / 2, top + boxH / 2 + 30, '800 96px ' + SH_KO, 'rgba(255,255,255,.9)', 'center');
+    text(r.indoor ? '실내 달리기' : '러닝', W / 2, top + boxH / 2 + 100, '600 40px ' + SH_KO, sub, 'center');
+  }
+  // memo and badges
+  if (memo) text(fit('“' + memo + '”', '600 44px ' + SH_KO, W - 2 * P), P, memoY, '600 44px ' + SH_KO, ink);
+  if (badges.length) {
+    g.font = '700 32px ' + SH_KO; let bx = P;
+    for (const b of badges) {
+      const w = g.measureText(b).width + 40; if (bx + w > W - P) break;
+      g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); if (g.roundRect) g.roundRect(bx, badgeY - 40, w, 54, 27); else g.rect(bx, badgeY - 40, w, 54); g.fill();
+      text(b, bx + 20, badgeY - 3, '700 32px ' + SH_KO, ink); bx += w + 14;
+    }
+  }
+  // the numbers (shrunk to fit their column when a font runs wide)
+  const sizeFor = (str, weight, size, maxW, fam) => { g.font = weight + ' ' + size + 'px ' + fam; let sz = size; while (sz > 36 && g.measureText(str).width > maxW) { sz -= 4; g.font = weight + ' ' + sz + 'px ' + fam; } return sz; };
+  const dTxt = kmTxt(r.dist, 2), dSz = sizeFor(dTxt, '600', 230, W - 2 * P - 150, SH_NUM);
+  const dw = text(dTxt, P - 6, distY, '600 ' + dSz + 'px ' + SH_NUM, ink);
+  text('km', P + dw + 10, distY, '600 ' + Math.round(dSz * 0.3) + 'px ' + SH_NUM, sub);
+  const pace = r.moving / Math.max(1, r.dist) * 1000, cols = [['시간', fmtDur(r.dur), ''], ['평균 페이스', fmtPace(pace), '/km']];
+  if (o.hr && r.hrAvg) cols.push(['평균 심박', String(Math.round(r.hrAvg)), 'bpm']);
+  const cw = (W - 2 * P) / cols.length;
+  cols.forEach(([k, v, u], i) => {
+    const x = P + i * cw; text(k, x, labY, '600 32px ' + SH_KO, sub);
+    g.font = '600 34px ' + SH_NUM; const uw = u ? g.measureText(u).width + 8 : 0;
+    const vs = sizeFor(v, '600', 80, cw - 24 - uw, SH_NUM), vw = text(v, x, valY, '600 ' + vs + 'px ' + SH_NUM, ink);
+    if (u) text(u, x + vw + 6, valY, '600 34px ' + SH_NUM, sub);
+  });
+  const foot = [];
+  if (o.wx && r.wx) foot.push(Math.round(r.wx.t) + '°' + (r.wx.om && isNum(r.wx.wc) ? ' ' + wxName(r.wx.wc) : '') + (isNum(r.wx.rh) ? ' · 습도 ' + r.wx.rh + '%' : ''));
+  if (!r.indoor && r.up) foot.push('오르막 ' + r.up + 'm');
+  if (r.cad) foot.push('케이던스 ' + r.cad);
+  if (foot.length) text(fit(foot.join('   ·   '), '600 30px ' + SH_KO, W - 2 * P), P, footY, '600 30px ' + SH_KO, sub);
+  g.shadowBlur = 0;
+}
+async function shareGo(id) {
+  const r = runById(id), cv = $('#share-cv'); if (!r || !cv) return;
+  const blob = await new Promise(res => { try { cv.toBlob(res, 'image/png'); } catch (e) { res(null); } });
+  if (!blob) return toast('그림을 만들지 못했어요');
+  if (!st.dl) return toast('이 화면에서는 그림 저장을 지원하지 않아요');
+  try { await st.dl.save({ filename: 'soom-' + dayISO(r.day) + '.png', data: blob }); }
+  catch (e) { if (!(e && e.code === 'declined')) toast('그림을 공유하지 못했어요'); }
+}
+function shareTextOf(r) {
+  const o = shareOpts(), pace = fmtPace(r.moving / Math.max(1, r.dist) * 1000), lines = [fmtDay(r.day) + ' ' + timeKo(r.start, r.off) + ' 러닝'];
+  lines.push(kmTxt(r.dist, 2) + 'km · ' + fmtDur(r.dur) + ' · ' + pace + '/km' + (o.hr && r.hrAvg ? ' · 평균 심박 ' + Math.round(r.hrAvg) : ''));
+  if (o.wx && r.wx) lines.push('날씨 ' + Math.round(r.wx.t) + '°' + (isNum(r.wx.rh) ? ' · 습도 ' + r.wx.rh + '%' : ''));
+  if (o.memo && noteFor(r)) lines.push('"' + noteFor(r) + '"');
+  lines.push('SOOM으로 분석했어요');
+  return lines.join('\n');
+}
+async function shareText(id) {
+  const r = runById(id); if (!r) return;
+  const t = shareTextOf(r);
+  try { await navigator.clipboard.writeText(t); toast('기록을 글로 복사했어요. 메시지 창에 붙여 넣으세요'); return; } catch (e) { /* no clipboard here */ }
+  try { if (navigator.share) { await navigator.share({ text: t }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  toast('복사하지 못했어요');
+}
+
 // ===== ui_views.js — the five tabs, run detail, settings, data import, guide =====
 
 const st = { data: null, settings: {}, M: null, view: 'today', back: [], runFilter: 'all', runLimit: 60, runChart: 'pace', mounts: [], scroll: {}, saved: false, dl: null, importing: null, confirmDelete: false, growthRange: 180, runsTab: 'list', cmp: { on: false, ids: [], from: null }, crsChart: 'pace', cmpChart: 'pace',
@@ -5582,7 +5737,7 @@ function vRun(id) {
   const s = r.ser, pace = r.moving / Math.max(1, r.dist) * 1000;
   let gsum = 0, vsum = 0; for (let i = 0; i < s.t.length; i++) { gsum += s.gv[i]; vsum += s.v[i]; }
   const gapPace = gsum > 0 && r.gps ? pace * vsum / gsum : null;
-  let h = '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div>';
+  let h = '<div class="row between"><button class="back" data-act="back">' + IC.back + '뒤로</button><button class="btn small ghost" data-act="share" data-v="' + r.id + '">' + IC.share + '공유</button></div>';
   h += '<div class="page-head"><div><h1 style="font-size:22px">' + fmtDay(r.day) + ' ' + timeKo(r.start, r.off) + '</h1><div class="page-sub">' + (r.indoor ? '실내 달리기' : '실외 달리기') + (r.src ? ' · ' + esc(r.src) : '') + '</div></div>' + labelChip(r.label) + '</div>';
   h += '<label class="memo"><span class="memo-ic" aria-hidden="true">' + IC.pen + '</span><span class="sr-only">한 줄 메모</span><input id="run-memo" data-run="' + r.id + '" type="text" maxlength="80" enterkeyhint="done" autocomplete="off" placeholder="한 줄 메모 (예: 반포 한강, 다리가 무거웠음)" value="' + esc(noteFor(r)) + '"></label>';
   h += '<section class="card"><div class="grid2">' +
@@ -6173,6 +6328,10 @@ document.addEventListener('click', e => {
     case 'cmp-clear': st.cmp = { on: false, ids: [], from: null }; render(true); break;
     case 'cmp-go': { const ids = st.cmp.ids.slice(); if (ids.length < 2) break; st.cmp = { on: false, ids: [], from: null }; go('cmp:' + ids.join(',')); break; }
     case 'cmp-open': go('cmp:' + v); break;
+    case 'share': openShare(v); break;
+    case 'share-opt': shareOpt(a.dataset.k, v); break;
+    case 'share-go': shareGo(v); break;
+    case 'share-text': shareText(v); break;
     case 'cchart': st.crsChart = v; document.querySelectorAll('[data-act="cchart"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); { const c = crsFind(st.view.slice(7)); if (c) crsChart(c); } break;
     case 'cmpchart': st.cmpChart = v; document.querySelectorAll('[data-act="cmpchart"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); { const ids = st.view.slice(4).split(','), runs = [...new Set(ids)].map(runById).filter(Boolean).sort((a, b) => a.start - b.start).slice(0, 4); if (runs.length >= 2) cmpChart(runs); } break;
     case 'backup-later': LS.set('backupSnooze', Math.round(nowUtc()) + 7 * 86400); render(true); toast('일주일 뒤에 다시 알려 드릴게요'); break;
