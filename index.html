@@ -3996,7 +3996,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "950108663c"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "60a94e5f25"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5452,6 +5452,14 @@ async function shPreview(cv, tok) {
 }
 const SH_KO = '"Apple SD Gothic Neo", "Noto Sans KR", -apple-system, "Malgun Gothic", sans-serif', SH_NUM = '"Barlow Condensed", "SF Pro Display", "Arial Narrow", sans-serif';
 // SOOM's mark as in the app's header: the pace-coloured line from a red ring to a green dot
+// the card's background colour at (x, y): the same diagonal gradient the card is painted with
+function shBgAt(x, y, W, H) {
+  const vx = W * 0.4, vy = H, t = Math.max(0, Math.min(1, (x * vx + y * vy) / (vx * vx + vy * vy)));
+  const S = [[0, [0x24, 0x21, 0x6b]], [0.55, [0x14, 0x14, 0x3a]], [1, [0x0c, 0x0d, 0x12]]];
+  let i = 0; while (i < S.length - 2 && t > S[i + 1][0]) i++;
+  const [t0, a] = S[i], [t1, b] = S[i + 1], k = (t - t0) / (t1 - t0);
+  return 'rgb(' + a.map((v, j) => Math.round(v + (b[j] - v) * k)).join(',') + ')';
+}
 function shMark(g, x, y, h, bg) {
   const path = document.querySelector('.top .mark path'), d = path && path.getAttribute('d'); if (!d || typeof Path2D === 'undefined') return 0;
   const k = h / 307; g.save(); g.translate(x - 130 * k, y - 357 * k); g.scale(k, k);
@@ -5482,9 +5490,9 @@ function drawShareCard(cv, r, o, tiles) {
   if (r.prs && r.prs.length) badges.push('개인 기록 ' + r.prs[0]);
   const c0 = typeof crs === 'function' ? crs().byRun.get(r.id) : null, spot = c0 ? courseSpot(c0, r.id) : null;
   if (spot && spot.rank === 1 && spot.n >= 3) badges.push('이 코스 최고 기록');
-  const footY = H - 62, valY = H - 136, labY = valY - 80, distY = labY - 74, badgeY = distY - 214, memoY = (badges.length ? badgeY : distY - 150) - 76;
-  // the map runs from the top edge (SOOM and the date sit on it) down to the memo; the route fits inside, clear of the header
-  const mapB = Math.max(520, memo ? memoY - 66 : badges.length ? badgeY - 76 : distY - 232);
+  const footY = H - 62, valY = H - 136, labY = valY - 80, distY = labY - 74, badgeY = distY - 214, memoY = badgeY - 76;
+  // the map runs from the top edge down to the row with the memo and the date; the route fits inside it
+  const mapB = Math.max(520, memoY - 66);
   const area = { x: 0, y: 0, w: W, h: mapB }, box = { x: P, y: 84, w: W - 2 * P, h: mapB - 84 - 54 };
   const pts = shPoints(r, o), plan = shMapPlan(r, pts, box, area);
   if (plan) {
@@ -5510,19 +5518,22 @@ function drawShareCard(cv, r, o, tiles) {
     if (L0) text(L0.name, W / 2, box.y + box.h / 2 + 30, '800 96px ' + SH_KO, 'rgba(255,255,255,.9)', 'center');
     text(r.indoor ? '실내 달리기' : '러닝', W / 2, box.y + box.h / 2 + 100, '600 40px ' + SH_KO, sub, 'center');
   }
-  // memo and badges
-  if (memo) text(fit('“' + memo + '”', '600 44px ' + SH_KO, W - 2 * P), P, memoY, '600 44px ' + SH_KO, ink);
+  // first row under the map: the memo on the left, the date and time on one line at the right
+  const when = fmtDay(r.day) + ' · ' + timeKo(r.start, r.off);
+  g.font = '600 32px ' + SH_KO; const whenW = g.measureText(when).width;
+  text(when, W - P, memoY, '600 32px ' + SH_KO, sub, 'right');
+  if (memo) text(fit('“' + memo + '”', '600 44px ' + SH_KO, W - 2 * P - whenW - 40), P, memoY, '600 44px ' + SH_KO, ink);
+  // second row: SOOM, small, right under the date (its gaps take the card's colour there); badges on the left
+  g.font = '800 32px ' + SH_KO; const sw = g.measureText('SOOM').width, mH = 26, mW = 752 * mH / 307, mx = W - P - sw - 12 - mW, my = badgeY - 26;
+  st.shMarkAt = { x: mx, y: my, k: mH / 307 };
+  shMark(g, mx, my, mH, shBgAt(mx + mW / 2, my + mH / 2, W, H)); text('SOOM', W - P, badgeY - 1, '800 32px ' + SH_KO, ink, 'right');
   if (badges.length) {
     g.font = '700 32px ' + SH_KO; let bx = P;
-    for (const b of badges) { const w = g.measureText(b).width + 40; if (bx + w > W - P) break; g.fillStyle = 'rgba(255,255,255,.14)'; rrect(bx, badgeY - 40, w, 54, 27); g.fill(); text(b, bx + 20, badgeY - 3, '700 32px ' + SH_KO, ink); bx += w + 14; }
+    for (const b of badges) { const w = g.measureText(b).width + 40; if (bx + w > mx - 30) break; g.fillStyle = 'rgba(255,255,255,.14)'; rrect(bx, badgeY - 40, w, 54, 27); g.fill(); text(b, bx + 20, badgeY - 3, '700 32px ' + SH_KO, ink); bx += w + 14; }
   }
   // the numbers (shrunk to fit their column when a font runs wide)
   const sizeFor = (str, weight, size, maxW, fam) => { g.font = weight + ' ' + size + 'px ' + fam; let sz = size; while (sz > 36 && g.measureText(str).width > maxW) { sz -= 4; g.font = weight + ' ' + sz + 'px ' + fam; } return sz; };
-  // when: two lines at the right of the distance
-  const d1 = fmtDay(r.day), d2 = timeKo(r.start, r.off);
-  g.font = '600 34px ' + SH_KO; const dateW = Math.max(g.measureText(d1).width, g.measureText(d2).width);
-  text(d1, W - P, distY - 96, '600 34px ' + SH_KO, sub, 'right'); text(d2, W - P, distY - 46, '600 34px ' + SH_KO, sub, 'right');
-  const dTxt = kmTxt(r.dist, 2), dSz = sizeFor(dTxt, '600', 230, W - 2 * P - dateW - 150, SH_NUM);
+  const dTxt = kmTxt(r.dist, 2), dSz = sizeFor(dTxt, '600', 230, W - 2 * P - 150, SH_NUM);
   const dw = text(dTxt, P - 6, distY, '600 ' + dSz + 'px ' + SH_NUM, ink);
   text('km', P + dw + 10, distY, '600 ' + Math.round(dSz * 0.3) + 'px ' + SH_NUM, sub);
   const pace = r.moving / Math.max(1, r.dist) * 1000, cols = [['시간', fmtDur(r.dur), ''], ['평균 페이스', fmtPace(pace), '/km']];
@@ -5536,12 +5547,9 @@ function drawShareCard(cv, r, o, tiles) {
   });
   const foot = [];
   if (o.wx && r.wx) foot.push(Math.round(r.wx.t) + '°' + (r.wx.om && isNum(r.wx.wc) ? ' ' + wxName(r.wx.wc) : '') + (isNum(r.wx.rh) ? ' · 습도 ' + r.wx.rh + '%' : ''));
+  if (r.cad) foot.push('케이던스 ' + r.cad + ' spm');
   if (!r.indoor && r.up) foot.push('오르막 ' + r.up + 'm');
-  // SOOM, small, at the bottom right (the mark's gaps take the card's colour there)
-  g.font = '800 32px ' + SH_KO; const sw = g.measureText('SOOM').width, mH = 26, mW = 752 * mH / 307, mx = W - P - sw - 12 - mW;
-  st.shMarkAt = { x: mx, y: footY - 24, k: mH / 307 };
-  shMark(g, mx, footY - 24, mH, '#0c0d12'); text('SOOM', W - P, footY, '800 32px ' + SH_KO, ink, 'right');
-  if (foot.length) text(fit(foot.join('   ·   '), '600 28px ' + SH_KO, W - 2 * P - sw - mW - 50), P, footY, '600 28px ' + SH_KO, sub);
+  if (foot.length) text(fit(foot.join('   ·   '), '600 28px ' + SH_KO, W - 2 * P), P, footY, '600 28px ' + SH_KO, sub);
   return { plan };
 }
 // share (to an app) or save (to Photos: the share window's "이미지 저장") — both go through the phone's share window
