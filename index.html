@@ -1690,6 +1690,13 @@ const HAE_METRIC = {
 };
 const HAE_SLEEP = { inbed: 0, asleep: 1, unspecified: 1, asleepunspecified: 1, awake: 2, core: 3, asleepcore: 3, deep: 4, asleepdeep: 4, rem: 5, asleeprem: 5 };
 function haeSpeedUnit(u) { u = String(u || '').toLowerCase(); return u === 'kmph' || u === 'km/h' ? 'km/hr' : u === 'mph' ? 'mi/hr' : u; }
+// the workout's kind: the name can be generic or in the phone's language ("야외 운동"), so the activity type comes first
+// (HealthKit code 37 = running, 52 = walking, 13 = cycling, 24 = hiking)
+function haeKind(w) {
+  const a = Array.isArray(w.activities) && w.activities[0] || {}, c = { 37: 'running', 52: 'walking', 13: 'cycling', 24: 'hiking' }[a.activityTypeCode];
+  const t = haeType(String(a.activityType || c || ''));
+  return t !== 'Other' ? t : haeType(String(w.name || w.workoutActivityType || ''));
+}
 function haeType(n) {
   if (/wheelchair/i.test(n)) return 'Other';
   if (/run|jog|treadmill|달리기|러닝|조깅|트레드밀/i.test(n)) return 'Running'; // the name can come in the phone's language
@@ -1802,7 +1809,7 @@ function haeWorkout(P, w, routes) {
   if (hrd.length && inside >= Math.min(3, hrd.length) && inside >= hrd.length * 0.5) {
     hrd.forEach((d, i) => { const v = isNum(d.Avg) ? d.Avg : d.qty; if (isNum(hrT[i]) && v >= 30 && v <= 240 && hrT[i] <= end + 5) P.hr.push(Math.round(hrT[i]) * 256 + Math.round(v)); });
   }
-  const isRun = haeType(name) === 'Running';
+  const isRun = haeKind(w) === 'Running';
   if (isRun) {
     haeChunks(w.stepCount, (t, du, v) => { if (du <= 600) P.steps.push(t, du, v); });
     haeChunks(w.walkingAndRunningDistance, (t, du, v, u) => { if (du <= 600) P.dist.push(t, du, toMeters(v, u || 'km')); });
@@ -1826,7 +1833,7 @@ function haeWorkout(P, w, routes) {
   const cad = obj(w.stepCadence);
   const rec = Array.isArray(w.heartRateRecovery) ? w.heartRateRecovery : [];
   P.workouts.push({
-    type: haeType(name), name, start, end, off, day, dur: isNum(w.duration) && w.duration > 0 ? w.duration : end - start,
+    type: haeKind(w), name, start, end, off, day, dur: isNum(w.duration) && w.duration > 0 ? w.duration : end - start,
     src: String(w.source || 'Health Auto Export'), legacyDist: NaN, legacyEnergy: NaN, meta, stats, events: [], routes: routeId ? [routeId] : [],
     cadAvg: cad && isNum(cad.qty) ? cad.qty : null,
     hrRec: rec.map(d => [parseDateLoose(d.date), isNum(d.Avg) ? d.Avg : d.qty]).filter(x => isNum(x[0]) && isNum(x[1])),
@@ -1843,7 +1850,7 @@ function haeToRaw(objs) {
     if (!data || typeof data !== 'object') continue;
     for (const m of Array.isArray(data.metrics) ? data.metrics : []) haeMetric(P, m);
     for (const w of Array.isArray(data.workouts) ? data.workouts : []) {
-      const k = String(w.start) + '|' + haeType(String(w.name || ''));
+      const k = String(w.start) + '|' + haeKind(w);
       const ex = best.get(k); if (!ex || size(w) > size(ex)) best.set(k, w);
     }
   }
@@ -3996,7 +4003,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "44701d1bcf"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "473f8a9c47"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
