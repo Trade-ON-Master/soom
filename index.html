@@ -1692,8 +1692,8 @@ const HAE_SLEEP = { inbed: 0, asleep: 1, unspecified: 1, asleepunspecified: 1, a
 function haeSpeedUnit(u) { u = String(u || '').toLowerCase(); return u === 'kmph' || u === 'km/h' ? 'km/hr' : u === 'mph' ? 'mi/hr' : u; }
 function haeType(n) {
   if (/wheelchair/i.test(n)) return 'Other';
-  if (/run|jog|treadmill/i.test(n)) return 'Running';
-  const map = [[/walk/i, 'Walking'], [/cycl|bike|biking/i, 'Cycling'], [/hik/i, 'Hiking'], [/swim/i, 'Swimming'], [/yoga/i, 'Yoga'], [/strength|weight/i, 'TraditionalStrengthTraining'],
+  if (/run|jog|treadmill|달리기|러닝|조깅|트레드밀/i.test(n)) return 'Running'; // the name can come in the phone's language
+  const map = [[/walk|걷기/i, 'Walking'], [/cycl|bike|biking|사이클|자전거/i, 'Cycling'], [/hik|하이킹|등산/i, 'Hiking'], [/swim/i, 'Swimming'], [/yoga/i, 'Yoga'], [/strength|weight/i, 'TraditionalStrengthTraining'],
     [/hiit|high intensity/i, 'HighIntensityIntervalTraining'], [/ellip/i, 'Elliptical'], [/rowing/i, 'Rowing'], [/stair/i, 'StairClimbing'], [/pilates/i, 'Pilates'], [/dance/i, 'Dance'],
     [/core/i, 'CoreTraining'], [/cooldown/i, 'Cooldown'], [/tennis/i, 'Tennis'], [/soccer|football/i, 'Soccer'], [/basketball/i, 'Basketball'], [/golf/i, 'Golf'], [/climb/i, 'Climbing'], [/box/i, 'Boxing']];
   for (const [re, t] of map) if (re.test(n)) return t;
@@ -3996,7 +3996,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "60a94e5f25"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "44701d1bcf"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
