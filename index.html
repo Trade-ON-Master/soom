@@ -576,6 +576,24 @@ details.more[open] summary::after { content: "접기"; }
 .of-list { display: grid; gap: 8px; }
 .of-row { display: grid; grid-template-columns: 84px 1fr; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .of-row b { font-weight: 650; }
+
+/* 월간 계획표 */
+.tp-nav { display: flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; }
+.tp-nav .btn { padding: 4px 10px; }
+.tp-note { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 10px; margin-top: 8px; }
+.tp-wd, .tp-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.tp-wd { margin-top: 10px; text-align: center; font-size: 12px; color: var(--muted); }
+.tp-week { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; width: 100%; background: none; border: 0; padding: 10px 2px 4px; text-align: left; font-size: 13px; }
+.tp-sum { margin-left: auto; font-size: 12px; color: var(--ink-2); }
+.tp-sum i { font-style: normal; font-size: 11px; color: var(--accent); margin-left: 3px; }
+.tp-day { position: relative; display: flex; flex-direction: column; align-items: flex-start; min-height: 66px; min-width: 0; padding: 4px 4px 7px; background: var(--surface-2); border: 1px solid transparent; border-radius: 8px; text-align: left; overflow: hidden; }
+.tp-day.off { background: none; }
+.tp-day.today { border-color: var(--accent); }
+.tp-day .n { font-size: 12px; color: var(--muted); }
+.tp-day .k { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.tp-day .d { font-family: var(--font-num); font-size: 12px; }
+.tp-day .r { position: absolute; top: 4px; right: 4px; font-family: var(--font-num); font-size: 11px; color: var(--good); }
+.tp-day i { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 999px; }
 </style>
 <div id="app">
   <header class="top">
@@ -3700,6 +3718,95 @@ function outfitFor(w, hard) {
   return { feel: Math.round(feel * 10) / 10, t: w.t, top: b.top, bottom: b.bottom, acc, alt: b.alt || null, notes, band: i, hard: !!hard };
 }
 
+// ===== core_schedule.js — monthly training calendar: weekly km from a monthly goal, recent volume check, .ics export =====
+// a plan: { goals: { '2026-11': { km, wk: { <monday day>: km } } }, days: { '2026-11-03': { k, km, pace } } }  (wk = weeks the runner changed by hand)
+const TP_KINDS = [['easy', '이지'], ['recovery', '회복'], ['long', '장거리'], ['progression', '빌드업'], ['tempo', '템포'], ['vo2', '인터벌'], ['speed', '스피드'], ['mpace', 'MP'], ['race', '레이스'], ['rest', '휴식']];
+const TP_SHAPE = [1, 1.08, 1.16, 0.8]; // three weeks building, one easier week to absorb them
+
+function tpShort(k) { const x = TP_KINDS.find(t => t[0] === k); return x ? x[1] : ''; }
+function monthKey(y, m) { return y + '-' + pad2(m); }
+
+// Monday-to-Sunday weeks touching the month; days = the dates of that week inside the month
+function monthWeeks(y, m) {
+  const first = daysFromCivil(y, m, 1), last = daysFromCivil(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1) - 1, out = [];
+  for (let mon = first - ((weekday(first) + 6) % 7); mon <= last; mon += 7) {
+    const days = [];
+    for (let d = Math.max(mon, first); d <= Math.min(mon + 6, last); d++) days.push(d);
+    out.push({ mon, days });
+  }
+  return out;
+}
+
+// split a monthly goal over its weeks; weeks in `fixed` keep their km and the rest share what's left. Weeks come out in whole km and add up to the goal.
+function splitMonth(goal, y, m, fixed) {
+  const weeks = monthWeeks(y, m), wk = fixed || {};
+  let n = 0; // a stub of a week at the month's edge doesn't count as a step in the build-up
+  const weight = weeks.map(w => w.days.length / 7 * (w.days.length >= 4 ? TP_SHAPE[n++ % TP_SHAPE.length] : 1));
+  const isFixed = w => isNum(wk[w.mon]);
+  const left = Math.max(0, goal - sum(weeks.filter(isFixed).map(w => wk[w.mon])));
+  const total = sum(weeks.map((w, i) => isFixed(w) ? 0 : weight[i]));
+  const res = weeks.map((w, i) => Object.assign({}, w, { fixed: isFixed(w), km: isFixed(w) ? wk[w.mon] : total > 0 ? Math.round(left * weight[i] / total) : 0 }));
+  const free = res.filter(w => !w.fixed);
+  if (free.length) {
+    const big = free.reduce((a, b) => b.km > a.km ? b : a);
+    big.km = Math.max(0, Math.round((big.km + left - sum(free.map(w => w.km))) * 10) / 10);
+  }
+  return res;
+}
+
+// average km per week over the last 4 finished weeks
+function recentWeekKm(runs, today) {
+  const mon = today - ((weekday(today) + 6) % 7);
+  return sum(runs.filter(r => r.day >= mon - 28 && r.day < mon).map(r => r.dist)) / 1000 / 4;
+}
+
+// the biggest full week against what the runner has been doing lately; null when it's a safe step (or there's no recent running to compare)
+function tpLoadWarn(weeks, base) {
+  if (!(base >= 5)) return null;
+  const full = weeks.filter(w => w.days.length === 7), peak = full.length ? Math.max(...full.map(w => w.km)) : 0;
+  return peak > base * 1.3 ? { peak, base } : null;
+}
+
+// '5:30', '5.30', '530' or the app's own 5'30" → seconds per km (3:00–12:59); '' → 0; anything else → null
+function parsePace(s) {
+  const t = String(s || '').trim().replace(/"$/, ''); if (!t) return 0;
+  const m = /^(\d{1,2})[:.'](\d{2})$/.exec(t) || /^(\d{1,2})(\d{2})$/.exec(t);
+  if (!m || +m[2] > 59) return null;
+  const p = +m[1] * 60 + +m[2];
+  return p >= 180 && p < 780 ? p : null;
+}
+
+function icsText(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+// RFC 5545: a line is at most 75 bytes, and folding must not cut a Korean character in half
+function icsFold(line) {
+  const size = c => { const n = c.codePointAt(0); return n < 0x80 ? 1 : n < 0x800 ? 2 : n < 0x10000 ? 3 : 4; };
+  const out = []; let cur = '', bytes = 0;
+  for (const c of line) {
+    if (bytes + size(c) > (out.length ? 74 : 75)) { out.push(cur); cur = ''; bytes = 0; }
+    cur += c; bytes += size(c);
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+function tpTitle(e) { return WK[e.k].name + (e.km ? ' ' + e.km + 'km' : ''); }
+function icsStamp(utc) { return new Date(utc * 1000).toISOString().replace(/[-:]|\.\d+/g, ''); }
+function icsDate(day) { return dayISO(day).replace(/-/g, ''); }
+
+// all-day events for the planned runs from day a to day b; rest days stay out of the phone's calendar. Each date has a fixed UID so a re-import can match it.
+function buildIcs(plan, a, b, nowSec) {
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SOOM//Training Plan//KO', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:SOOM 훈련'];
+  let n = 0;
+  for (let d = a; d <= b; d++) {
+    const e = plan.days[dayISO(d)];
+    if (!e || !WK[e.k] || e.k === 'rest') continue;
+    n++;
+    L.push('BEGIN:VEVENT', 'UID:soom-' + icsDate(d) + '@trade-on-master.github.io', 'DTSTAMP:' + icsStamp(nowSec), 'DTSTART;VALUE=DATE:' + icsDate(d), 'DTEND;VALUE=DATE:' + icsDate(d + 1),
+      'SUMMARY:' + icsText('SOOM ' + tpTitle(e)), 'DESCRIPTION:' + icsText((e.pace ? '목표 페이스 ' + fmtPace(e.pace) + '/km\n' : '') + WK[e.k].purpose), 'TRANSP:TRANSPARENT', 'END:VEVENT');
+  }
+  L.push('END:VCALENDAR');
+  return { n, text: L.map(icsFold).join('\r\n') + '\r\n' };
+}
+
 // ===== core_course.js — same courses: runs that follow the same path, compared with the weather taken out =====
 // Found from the route shape alone, on the device: the start and the finish within 250 m, the distance within 12 %, and at least
 // 85 % of each path within 60 m of the other's. Comparisons use the moving pace with the heat/wind effect (러닝 날씨 영향) taken out.
@@ -4060,7 +4167,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f070a574fe"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "2a6e7bbfad"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5681,6 +5788,104 @@ async function shareText(id) {
   toast('복사하지 못했어요');
 }
 
+// ===== ui_schedule.js — monthly training calendar on the training page: goal, weeks, days, phone calendar file =====
+function tplanOf() { return st.tplan || (st.tplan = { goals: {}, days: {} }); }
+function saveTplan() { const p = tplanOf(); LS.set('tplan', p); DB.set('tplan', p); }
+function tpYM() {
+  if (!st.tpMonth) { const [y, m] = civilFromDays(st.M.today); st.tpMonth = [y, m]; }
+  return st.tpMonth;
+}
+function tpGoal() { const [y, m] = tpYM(); return tplanOf().goals[monthKey(y, m)] || null; }
+function tpWeeks() { const [y, m] = tpYM(), g = tpGoal(); return g ? splitMonth(g.km, y, m, g.wk) : monthWeeks(y, m); }
+const tpTone = k => { const w = WK[k]; return !w || k === 'rest' ? 'var(--line)' : w.inten === 'easy' ? 'var(--z2)' : w.inten === 'moderate' ? 'var(--z3)' : 'var(--z5)'; };
+const tpKm = n => String(Math.round(n * 10) / 10);
+
+function tplanCard() {
+  const M = st.M, [y, m] = tpYM(), g = tpGoal(), weeks = tpWeeks(), P = tplanOf();
+  const ranDay = {}; M.runs.forEach(r => { ranDay[r.day] = (ranDay[r.day] || 0) + r.dist / 1000; });
+  let h = '<section class="card" id="tp-card"><div class="card-head"><h2>월간 계획표</h2><div class="tp-nav"><button class="btn small ghost" data-act="tp-month" data-v="-1" aria-label="이전 달">‹</button><b>' + y + '년 ' + m + '월</b><button class="btn small ghost" data-act="tp-month" data-v="1" aria-label="다음 달">›</button></div></div>';
+  h += '<div class="field inline"><label for="tp-goal">이달 목표 거리 (km)</label><input id="tp-goal" type="number" inputmode="decimal" step="1" min="0" max="2000" placeholder="예: 150" value="' + (g ? g.km : '') + '"></div>';
+  if (g) {
+    const tot = sum(weeks.map(w => w.km)), warn = tpLoadWarn(weeks, recentWeekKm(M.runs, M.today));
+    if (Math.abs(tot - g.km) >= 0.05) h += '<p class="small tp-note">주별 합계가 ' + tpKm(tot) + 'km로 목표와 ' + tpKm(Math.abs(tot - g.km)) + 'km 차이 나요. 주 거리를 고치거나 자동으로 되돌려 주세요.</p>';
+    if (warn) h += '<p class="small tp-note">가장 많은 주가 ' + tpKm(warn.peak) + 'km예요. 최근 4주 평균 ' + tpKm(warn.base) + 'km보다 크게 늘어서 부상 위험이 있어요. 목표를 조금 낮추는 걸 권해요.</p>';
+  }
+  h += '<div class="tp-wd">' + [1, 2, 3, 4, 5, 6, 0].map(i => '<span>' + WD[i] + '</span>').join('') + '</div>';
+  weeks.forEach((w, i) => {
+    const planned = sum(w.days.map(d => (P.days[dayISO(d)] || {}).km || 0)), ran = sum(w.days.map(d => ranDay[d] || 0));
+    h += '<button class="tp-week" data-act="tp-week" data-v="' + w.mon + '"><b>' + (i + 1) + '주</b><span class="xs muted">' + fmtDayShort(w.days[0]) + (w.days.length > 1 ? '–' + fmtDayShort(w.days[w.days.length - 1]) : '') + '</span><span class="tp-sum">' +
+      (g ? '목표 <b>' + tpKm(w.km) + '</b>' + (w.fixed ? '<i>수정</i>' : '') + ' · ' : '') + '계획 ' + tpKm(planned) + ' · 달림 ' + tpKm(ran) + 'km</span></button><div class="tp-row">';
+    for (let d = w.mon; d < w.mon + 7; d++) {
+      if (!w.days.includes(d)) { h += '<span class="tp-day off"></span>'; continue; }
+      const e = P.days[dayISO(d)], r = ranDay[d];
+      h += '<button class="tp-day' + (d === M.today ? ' today' : '') + '" data-act="tp-day" data-v="' + d + '" aria-label="' + esc(fmtDay(d)) + (e ? ' ' + esc(WK[e.k].name) : '') + '"><span class="n">' + civilFromDays(d)[2] + '</span>' +
+        (e ? '<span class="k">' + esc(tpShort(e.k)) + '</span>' + (e.km ? '<span class="d">' + tpKm(e.km) + '</span>' : '') + '<i style="background:' + tpTone(e.k) + '"></i>' : '') +
+        (r ? '<span class="r">' + tpKm(r) + '</span>' : '') + '</button>';
+    }
+    h += '</div>';
+  });
+  h += '<button class="btn secondary block" style="margin-top:12px" data-act="tp-ics">휴대폰 캘린더로 보내기</button><p class="xs muted" style="margin-top:6px">날짜를 누르면 훈련을 넣고, 주 줄을 누르면 그 주 거리를 고쳐요. 초록 숫자는 실제로 달린 거리예요. 계획을 바꾼 뒤 다시 보내면 캘린더에 겹쳐 보일 수 있어요.</p></section>';
+  return h;
+}
+
+function tpMonthMove(n) {
+  const [y, m] = tpYM(), t = y * 12 + m - 1 + n;
+  st.tpMonth = [Math.floor(t / 12), t % 12 + 1]; render(true);
+}
+function tpSetGoal(v) {
+  const [y, m] = tpYM(), key = monthKey(y, m), P = tplanOf(), km = parseFloat(v);
+  if (!(km > 0)) { delete P.goals[key]; saveTplan(); render(true); return; }
+  if (km > 2000) { toast('목표 거리는 2000km까지 넣을 수 있어요'); render(true); return; }
+  P.goals[key] = { km, wk: (P.goals[key] || {}).wk || {} }; saveTplan(); render(true);
+}
+
+function tpDaySheet(d) {
+  const e = tplanOf().days[dayISO(d)] || { k: 'easy' };
+  const opts = TP_KINDS.map(([k]) => '<option value="' + k + '"' + (k === e.k ? ' selected' : '') + '>' + esc(WK[k].name) + '</option>').join('');
+  return '<div class="grab"></div><h3>' + esc(fmtDay(d)) + '</h3><form id="tp-day-form" data-day="' + d + '" novalidate>' +
+    '<div class="field"><label for="tp-kind">훈련 종류</label><select id="tp-kind">' + opts + '</select></div>' +
+    '<div class="field inline"><label for="tp-km">거리 (km)</label><input id="tp-km" type="number" inputmode="decimal" step="0.1" min="0" max="300" placeholder="예: 8" value="' + (e.km || '') + '"></div>' +
+    '<div class="field inline"><label for="tp-pace">페이스 (분:초/km)</label><input id="tp-pace" type="text" inputmode="numbers-and-punctuation" maxlength="5" autocomplete="off" placeholder="예: 5:30" value="' + (e.pace ? esc(fmtPace(e.pace)) : '') + '"></div>' +
+    '<div class="grid2" style="margin-top:14px"><button type="button" class="btn secondary" data-act="close">취소</button><button type="submit" class="btn">저장</button></div>' +
+    (tplanOf().days[dayISO(d)] ? '<button type="button" class="btn danger block" style="margin-top:8px" data-act="tp-day-del" data-v="' + d + '">이날 계획 지우기</button>' : '') + '</form>';
+}
+function tpSaveDay() {
+  const f = $('#tp-day-form'); if (!f) return;
+  const k = $('#tp-kind').value, km = parseFloat($('#tp-km').value), pace = parsePace($('#tp-pace').value);
+  if (pace === null) { toast('페이스는 5:30처럼 넣어 주세요'); return; }
+  if (isNum(km) && (km < 0 || km > 300)) { toast('거리를 다시 확인해 주세요'); return; }
+  const e = { k }; if (k !== 'rest') { if (km > 0) e.km = km; if (pace) e.pace = pace; }
+  tplanOf().days[dayISO(+f.dataset.day)] = e; saveTplan(); closeSheet(); render(true);
+}
+function tpDelDay(d) { delete tplanOf().days[dayISO(d)]; saveTplan(); closeSheet(); render(true); }
+
+function tpWeekSheet(mon) {
+  const w = tpWeeks().find(x => x.mon === mon), g = tpGoal(); if (!w) return '';
+  const range = fmtDayShort(w.days[0]) + (w.days.length > 1 ? '–' + fmtDayShort(w.days[w.days.length - 1]) : '');
+  if (!g) return '<div class="grab"></div><h3>' + range + ' 주</h3><p class="small ink2">먼저 이달 목표 거리를 넣으면 주별 거리를 자동으로 나눠 드려요.</p><button class="btn block" style="margin-top:14px" data-act="close">확인</button>';
+  return '<div class="grab"></div><h3>' + range + ' 주 목표</h3><form id="tp-week-form" data-mon="' + mon + '" novalidate>' +
+    '<div class="field inline"><label for="tp-wk">이 주 거리 (km)</label><input id="tp-wk" type="number" inputmode="decimal" step="1" min="0" max="500" value="' + w.km + '"><span class="hint">고치면 나머지 주가 남은 거리를 나눠 가져요.</span></div>' +
+    '<div class="grid2" style="margin-top:14px"><button type="button" class="btn secondary" data-act="close">취소</button><button type="submit" class="btn">저장</button></div>' +
+    (w.fixed ? '<button type="button" class="btn ghost block" style="margin-top:8px" data-act="tp-week-auto" data-v="' + mon + '">자동으로 되돌리기</button>' : '') + '</form>';
+}
+function tpSaveWeek() {
+  const f = $('#tp-week-form'), km = parseFloat($('#tp-wk').value);
+  if (!f || !isNum(km) || km < 0 || km > 500) { toast('거리를 다시 확인해 주세요'); return; }
+  tpGoal().wk[f.dataset.mon] = km; saveTplan(); closeSheet(); render(true);
+}
+function tpAutoWeek(mon) { delete tpGoal().wk[mon]; saveTplan(); closeSheet(); render(true); }
+
+async function tpExport() {
+  if (!st.dl) { toast('이 화면에서는 파일 저장을 지원하지 않아요'); return; }
+  const [y, m] = tpYM(), w = monthWeeks(y, m), last = w[w.length - 1].days.slice(-1)[0];
+  const ics = buildIcs(tplanOf(), Math.max(w[0].days[0], st.M.today), last, Math.round(nowUtc()));
+  if (!ics.n) { toast('보낼 훈련이 없어요. 오늘 이후 날짜에 훈련을 넣어 주세요'); return; }
+  try {
+    await st.dl.save({ filename: 'soom-plan-' + monthKey(y, m) + '.ics', data: new Blob([ics.text], { type: 'text/calendar' }) });
+    toast('훈련 ' + ics.n + '개를 캘린더 파일로 만들었어요');
+  } catch (err) { if (!err || err.code !== 'declined') toast('파일을 만들지 못했어요'); }
+}
+
 // ===== ui_views.js — the five tabs, run detail, settings, data import, guide =====
 
 const st = { data: null, settings: {}, M: null, view: 'today', back: [], runFilter: 'all', runLimit: 60, runChart: 'pace', mounts: [], scroll: {}, saved: false, dl: null, importing: null, confirmDelete: false, growthRange: 180, runsTab: 'list', cmp: { on: false, ids: [], from: null }, crsChart: 'pace', cmpChart: 'pace',
@@ -6005,7 +6210,7 @@ function vTraining() {
   let h = '<div class="page-head"><div><h1>훈련</h1><div class="page-sub">부하 · 상태 · 계획' + (M.ref !== M.today || M.asOf ? ' · ' + fmtDay(M.ref) + ' 기준' : '') + '</div></div></div>';
   h += '<section class="card"><div class="card-head"><h2>훈련 상태 ' + infoBtn('status') + '</h2>' + pill(s.name, s.tone) + '</div><p class="small ink2">' + esc(s.desc) + '</p><div class="divider"></div><div class="grid3">' +
     stat('7일 부하', Math.round(M.load7), '', 'load') + stat('부하 비율', M.acwr !== null ? M.acwr.toFixed(2) : '–', '', 'acwr') + stat('체력 4주 변화', isNum(s.vo2Delta) ? signed(s.vo2Delta, 1) : '–', '', 'vo2') + '</div></section>';
-  if (!M.asOf) h += weekStrip();
+  if (!M.asOf) h += weekStrip() + tplanCard();
   // load chart
   h += '<section class="card"><div class="card-head"><h2>훈련 부하 추이 ' + infoBtn('fitness') + '</h2><span class="xs muted">최근 12주</span></div><div class="chart" id="c-load"></div>' +
     '<div class="divider"></div><div class="grid3">' + stat('기초 체력', Math.round(M.ctl), '') + stat('단기 피로', Math.round(M.atl), '') + stat('폼', isNum(M.form) ? signed(M.form, 0) : '–', '') + '</div>' +
@@ -6501,6 +6706,12 @@ document.addEventListener('click', e => {
     case 'cmp-go': { const ids = st.cmp.ids.slice(); if (ids.length < 2) break; st.cmp = { on: false, ids: [], from: null }; go('cmp:' + ids.join(',')); break; }
     case 'cmp-open': go('cmp:' + v); break;
     case 'share': openShare(v); break;
+    case 'tp-month': tpMonthMove(+v); break;
+    case 'tp-day': openSheet(tpDaySheet(+v)); break;
+    case 'tp-day-del': tpDelDay(+v); break;
+    case 'tp-week': openSheet(tpWeekSheet(+v)); break;
+    case 'tp-week-auto': tpAutoWeek(+v); break;
+    case 'tp-ics': tpExport(); break;
     case 'outfit-open': outfitOpen(); break;
     case 'outfit': outfitSet(a.dataset.k, v); break;
     case 'share-opt': shareOpt(a.dataset.k, v); break;
@@ -6549,7 +6760,7 @@ document.addEventListener('click', e => {
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMapFull(); closeSheet(); } if (e.key === 'Enter' && e.target.id === 'run-memo') { e.preventDefault(); e.target.blur(); } });
-document.addEventListener('submit', e => { if (e.target.id === 'crs-form') { e.preventDefault(); crsRenameSave(); return; } if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } else if (e.target.id === 'shoe-form') { e.preventDefault(); saveShoe(); } });
+document.addEventListener('submit', e => { if (e.target.id === 'tp-day-form') { e.preventDefault(); tpSaveDay(); return; } if (e.target.id === 'tp-week-form') { e.preventDefault(); tpSaveWeek(); return; } if (e.target.id === 'crs-form') { e.preventDefault(); crsRenameSave(); return; } if (e.target.id === 'settings-form') { e.preventDefault(); saveSettings(); } else if (e.target.id === 'shoe-form') { e.preventDefault(); saveShoe(); } });
 
 function saveSettings() {
   const f = $('#settings-form'); if (!f) return;
@@ -6617,6 +6828,7 @@ function wxUnswap(a) {
 document.addEventListener('change', e => {
   if (e.target.id === 'goalDist') { const f = $('#settings-form'); if (f) f.dataset.goal = +e.target.value > 0 ? 1 : 0; }
   if (e.target.id === 'goalDate') { const b = document.querySelector('[data-act="cleardate"]'); if (b) b.hidden = !e.target.value; }
+  if (e.target.id === 'tp-goal') tpSetGoal(e.target.value);
   if (e.target.id === 'of-h') outfitSet('h', e.target.value);
   if (e.target.id === 'run-shoe') setRunShoe(e.target.dataset.run, e.target.value);
   if (e.target.id === 'run-memo') { clearTimeout(st.memoT); saveNote(e.target.dataset.run, e.target.value); toast(e.target.value.trim() ? '메모를 저장했어요' : '메모를 지웠어요'); } // 'change' fires only when the text changed
@@ -6690,6 +6902,7 @@ $('#file-backup').addEventListener('change', async e => {
     st.data = data;
     if (obj.settings) { st.settings = obj.settings; LS.set('settings', st.settings); DB.set('settings', st.settings); }
     if (obj.gear && Array.isArray(obj.gear.shoes)) { st.gear = Object.assign({ shoes: [], pick: {} }, obj.gear); saveGear(); }
+    if (obj.tplan && obj.tplan.days && obj.tplan.goals) { st.tplan = obj.tplan; saveTplan(); }
     if (obj.notes && typeof obj.notes === 'object') { st.notes = Object.assign({}, obj.notes, st.notes); LS.set('notes', st.notes); DB.set('notes', st.notes); }
     if (obj.wx && typeof obj.wx === 'object') { st.wx.runs = Object.assign({}, obj.wx, st.wx.runs); DB.set('wx', { v: WX_V, runs: st.wx.runs, ktry: st.wx.ktry || {} }); }
     st.saved = await DB.set('data', cleanData(data));
@@ -6715,7 +6928,7 @@ async function webSave({ filename, data }) {
 }
 async function doBackup() {
   if (!st.dl) { toast('이 화면에서는 파일 저장을 지원하지 않아요'); return; }
-  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), notes: st.notes || {}, wx: st.wx.runs, data: cleanData(st.data) });
+  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), tplan: tplanOf(), notes: st.notes || {}, wx: st.wx.runs, data: cleanData(st.data) });
   try {
     await st.dl.save({ filename: 'soom-backup-' + dayISO(st.M.today) + '.json', data: new Blob([payload], { type: 'application/json' }) });
     LS.set('lastBackup', Math.round(nowUtc())); LS.del('backupSnooze');
@@ -6732,7 +6945,7 @@ async function shareApp() {
   try { await navigator.clipboard.writeText(url); toast('주소를 복사했어요: ' + url); } catch (e) { toast('SOOM 주소: ' + url); }
 }
 async function doDelete() {
-  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('wxfc'); LS.del('wxkerr'); st.newIds = []; st.gear = { shoes: [], pick: {} };
+  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('tplan'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('tplan'); LS.del('wxfc'); LS.del('wxkerr'); st.newIds = []; st.gear = { shoes: [], pick: {} }; st.tplan = { goals: {}, days: {} };
   st.wx.runs = {}; st.wx.fc = null; st.wx.err = null; st.wx.place = null; LS.del('wxplace'); LS.del('places');
   st.notes = {}; LS.del('notes'); await DB.del('notes');
   st.settings = {}; st.saved = false; st.confirmDelete = false;
@@ -6749,6 +6962,7 @@ async function boot() {
   st.newIds = LS.get('newIds') || [];
   st.gear = (await DB.get('gear')) || LS.get('gear') || { shoes: [], pick: {} };
   if (!st.gear.pick) st.gear.pick = {};
+  st.tplan = (await DB.get('tplan')) || LS.get('tplan') || { goals: {}, days: {} };
   const wxs = await DB.get('wx');
   if (wxs && wxs.v === WX_V && wxs.runs) { st.wx.runs = wxs.runs; st.wx.ktry = wxs.ktry || {}; }
   st.wx.kerr = LS.get('wxkerr') || null;
