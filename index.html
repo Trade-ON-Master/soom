@@ -3801,7 +3801,7 @@ function buildIcs(plan, a, b, nowSec) {
     if (!e || !WK[e.k] || e.k === 'rest') continue;
     n++;
     L.push('BEGIN:VEVENT', 'UID:soom-' + icsDate(d) + '@trade-on-master.github.io', 'DTSTAMP:' + icsStamp(nowSec), 'DTSTART;VALUE=DATE:' + icsDate(d), 'DTEND;VALUE=DATE:' + icsDate(d + 1),
-      'SUMMARY:' + icsText('SOOM ' + tpTitle(e)), 'DESCRIPTION:' + icsText((e.pace ? '목표 페이스 ' + fmtPace(e.pace) + '/km\n' : '') + WK[e.k].purpose), 'TRANSP:TRANSPARENT', 'END:VEVENT');
+      'SUMMARY:' + icsText(tpTitle(e)), 'DESCRIPTION:' + icsText((e.pace ? '목표 페이스 ' + fmtPace(e.pace) + '/km\n' : '') + WK[e.k].purpose), 'TRANSP:TRANSPARENT', 'END:VEVENT');
   }
   L.push('END:VCALENDAR');
   return { n, text: L.map(icsFold).join('\r\n') + '\r\n' };
@@ -4167,7 +4167,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "9dc0ff6bc3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "5bc6fc73c3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5824,7 +5824,7 @@ function tplanCard() {
     }
     h += '</div>';
   });
-  h += '<button class="btn secondary block" style="margin-top:12px" data-act="tp-ics">캘린더에 추가</button><p class="xs muted" style="margin-top:6px">날짜를 누르면 훈련을 넣고, 주 줄을 누르면 그 주 거리를 고쳐요. 초록 숫자는 실제로 달린 거리예요. 계획을 바꾼 뒤 다시 추가하면 캘린더에 겹쳐 보일 수 있어요.</p></section>';
+  h += '<button class="btn secondary block" style="margin-top:12px" data-act="tp-ics">캘린더에 추가</button><p class="xs muted" style="margin-top:6px">날짜를 누르면 훈련을 넣고, 주 줄을 누르면 그 주 거리를 고쳐요. 초록 숫자는 실제로 달린 거리예요. 이미 넣은 날의 계획을 바꿨다면 캘린더에서 그 일정을 지운 뒤 다시 추가해 주세요. 그대로 추가하면 바뀌지 않아요.</p></section>';
   return h;
 }
 
