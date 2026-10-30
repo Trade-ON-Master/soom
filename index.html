@@ -600,6 +600,14 @@ details.more[open] summary::after { content: "접기"; }
 .of-pics { display: flex; align-items: center; color: var(--ink-2); }
 .of-pics svg { width: 36px; height: 36px; flex: none; fill: var(--of-fill, var(--surface-2)); stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .of-pics svg + svg { margin-left: -12px; }
+/* 러닝 계산기 */
+.calc-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.calc-tools button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 10px; padding: 8px 2px; font-size: 13px; line-height: 1.25; min-width: 0; word-break: keep-all; }
+.calc-tools button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.calc-dist { margin-top: 10px; }
+.calc-empty { padding: 4px 0; }
+.calc-hint { margin-top: 8px; }
+.calc-now td { font-weight: 700; background: var(--accent-soft); }
 </style>
 <div id="app">
   <header class="top">
@@ -3818,6 +3826,68 @@ function buildIcs(plan, a, b, nowSec) {
   return { n, text: L.map(icsFold).join('\r\n') + '\r\n' };
 }
 
+// ===== core_calc.js — running calculators: pace, treadmill, intervals, cadence + stride, VDOT, weight, heart-rate zones =====
+const CALC_DISTS = [[5000, '5K', '5'], [10000, '10K', '10'], [21097.5, '하프', '21.0975'], [42195, '풀', '42.195']];
+const PACE_ZONES = [['rec', '회복'], ['easy', '이지'], ['mar', '마라톤'], ['thr', '역치'], ['int', '인터벌'], ['rep', '반복']];
+
+// give two of distance (km), time (s) and pace (s/km); `want` is the one worked out
+function solvePace(want, km, sec, pace) {
+  const ok = x => isNum(x) && x > 0;
+  if (want === 'pace' && ok(km) && ok(sec)) pace = sec / km;
+  else if (want === 'time' && ok(km) && ok(pace)) sec = km * pace;
+  else if (want === 'dist' && ok(sec) && ok(pace)) km = sec / pace;
+  else return null;
+  return { km, sec, pace, kmh: 3600 / pace };
+}
+function kmhToPace(kmh) { return kmh > 0 ? 3600 / kmh : null; }
+function paceToKmh(pace) { return pace > 0 ? 3600 / pace : null; }
+
+// pace (s/km), cadence (steps/min), stride (cm): give two, `want` is the third
+function solveStride(want, pace, cad, cm) {
+  const ok = x => isNum(x) && x > 0;
+  if (want === 'pace' && ok(cad) && ok(cm)) pace = 100000 / (cad * cm) * 60;
+  else if (want === 'cad' && ok(pace) && ok(cm)) cad = 100000 / (pace / 60) / cm;
+  else if (want === 'stride' && ok(pace) && ok(cad)) cm = 100000 / (pace / 60) / cad;
+  else return null;
+  return { pace, cad, cm };
+}
+
+// meters per rep at a pace, repeated with rest (s) between reps (none after the last)
+function intervalCalc(m, pace, reps, rest) {
+  if (!(m > 0 && pace > 0 && reps >= 1)) return null;
+  const rep = m / 1000 * pace, r = rest > 0 ? rest : 0;
+  return { rep, lap400: 0.4 * pace, km: m * reps / 1000, run: rep * reps, total: rep * reps + r * (reps - 1) };
+}
+
+// a race result → its VDOT, training paces and equal-effort times; null when the result is out of the formula's range
+function vdotCalc(distM, sec) {
+  if (!(distM > 0 && sec > 0)) return null;
+  const vdot = vdotFromRace(distM, sec);
+  if (!(vdot >= 20 && vdot <= 90)) return null;
+  const races = CALC_DISTS.map(([d, name]) => { const t = raceTimeFor(vdot, d); return { name, t, pace: t / (d / 1000) }; });
+  return { vdot, paces: pacesFor(vdot, races[3].pace), races };
+}
+
+// same fitness at another weight: oxygen use per kg scales with 1/weight, so VDOT moves by kg/other. A rough estimate.
+function weightRows(distM, sec, kg, span) {
+  const v = vdotCalc(distM, sec), n = span || 5;
+  if (!v || !(kg >= 30 && kg <= 200)) return null;
+  const rows = [];
+  for (let d = -n; d <= n; d++) {
+    const t = d ? raceTimeFor(v.vdot * kg / (kg + d), distM) : sec;
+    rows.push({ d, kg: kg + d, t, pace: t / (distM / 1000), diff: t - sec });
+  }
+  return rows;
+}
+
+// 5 zones as [low, high]; top of Z5 is the max heart rate
+function zoneRanges(zs, max) { return zs.map((z, i) => [z, i === 4 ? max : zs[i + 1] - 1]); }
+function calcZones(method, rest, max, lthr) {
+  if (!(max >= 100 && max <= 240)) return null;
+  if (method === 'lthr' ? !(lthr >= 80 && lthr < max) : method === 'hrr' && !(rest >= 25 && rest < max)) return null;
+  return makeZones(method, rest, max, lthr);
+}
+
 // ===== core_course.js — same courses: runs that follow the same path, compared with the weather taken out =====
 // Found from the route shape alone, on the device: the start and the finish within 250 m, the distance within 12 %, and at least
 // 85 % of each path within 60 m of the other's. Comparisons use the moving pace with the heat/wind effect (러닝 날씨 영향) taken out.
@@ -4178,7 +4248,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "baf0f6a3e3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "248be8b5ac"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5937,6 +6007,124 @@ async function tpExport() {
   } catch (err) { if (!err || err.code !== 'declined') toast('파일을 만들지 못했어요'); }
 }
 
+// ===== ui_calc.js — running calculators, opened from the training page. Results update as you type. =====
+const CALC_TOOLS = [['pace', '페이스'], ['tread', '트레드밀'], ['int', '인터벌'], ['stride', '케이던스·보폭'], ['vdot', 'VDOT'], ['weight', '체중별 기록'], ['hr', '심박 구간']];
+const CALC_INTRO = { pace: '거리·시간·페이스 중 두 가지를 넣으면 나머지를 알려 드려요.', tread: '트레드밀의 km/h와 달리기 페이스를 서로 바꿔요.', int: '한 번 달릴 거리와 목표 페이스로 구간 시간과 총 훈련량을 계산해요.',
+  stride: '케이던스·보폭·페이스 중 두 가지를 넣으면 나머지를 알려 드려요.', vdot: '기록을 넣으면 VDOT, 훈련 페이스, 거리별 예상 기록을 계산하고 나의 VDOT과 비교해요.',
+  weight: '체력은 그대로이고 체중만 달라질 때의 예상 기록이에요.', hr: '심박 값을 넣어 구간을 계산하고 나의 심박 구간과 비교해요.' };
+
+function calcState() { return st.calc || (st.calc = Object.assign({ tool: 'pace', v: {} }, LS.get('calc') || {})); }
+function calcVal(k, def) { const v = calcState().v[k]; return v === undefined ? (def === undefined || def === null ? '' : String(def)) : v; }
+const calcNum = (k, def) => { const x = parseFloat(calcVal(k, def)); return isNum(x) ? x : null; };
+const calcSec = k => parseGoalTime(calcVal(k));
+const calcPace = k => parsePace(calcVal(k)) || null;
+const calcKm = n => String(Math.round(n * 100) / 100);
+
+function calcSeg(k, cur, opts) {
+  return '<div class="segctl" role="group">' + opts.map(([v, n]) => '<button type="button" data-act="calc" data-k="' + k + '" data-v="' + esc(v) + '" aria-pressed="' + (v === cur) + '">' + esc(n) + '</button>').join('') + '</div>';
+}
+function calcField(k, label, ph, kind, def) {
+  const attrs = kind === 'time' ? 'type="text" inputmode="numbers-and-punctuation" autocomplete="off"' : 'type="number" inputmode="decimal" step="any" min="0"';
+  return '<div class="field inline"><label for="c-' + k + '">' + label + '</label><input id="c-' + k + '" data-calc="' + k + '" ' + attrs + ' placeholder="' + esc(ph) + '" value="' + esc(calcVal(k, def)) + '"></div>';
+}
+function calcDist(withKm) {
+  const km = calcVal('km', '10');
+  return '<div class="segctl calc-dist" role="group" aria-label="거리">' + CALC_DISTS.map(([, n, v]) => '<button type="button" data-act="calc" data-k="km" data-v="' + v + '" aria-pressed="' + (v === km) + '">' + n + '</button>').join('') + '</div>' +
+    (withKm ? calcField('km', '거리 (km)', '예: 10', 'num', '10') : '');
+}
+const calcBig = (k, v, u) => stat(k, esc(v), u || '');
+const calcNote = t => '<p class="small ink2 calc-empty">' + esc(t) + '</p>';
+const calcDistM = () => { const km = calcNum('km') === null ? 10 : calcNum('km'); return km * 1000; };
+
+function calcForm(t) {
+  if (t === 'pace') {
+    const w = calcVal('want', 'pace');
+    return calcSeg('want', w, [['pace', '페이스 구하기'], ['time', '시간 구하기'], ['dist', '거리 구하기']]) + (w !== 'dist' ? calcDist(true) : '') +
+      (w !== 'time' ? calcField('time', '시간', '예: 50:00', 'time') : '') + (w !== 'pace' ? calcField('pace', '페이스 (분:초/km)', '예: 5:00', 'time') : '');
+  }
+  if (t === 'tread') {
+    const w = calcVal('dir', 'kmh');
+    return calcSeg('dir', w, [['kmh', 'km/h → 페이스'], ['pace', '페이스 → km/h']]) + (w === 'kmh' ? calcField('kmh', '트레드밀 속도 (km/h)', '예: 10', 'num') : calcField('tpace', '페이스 (분:초/km)', '예: 5:30', 'time'));
+  }
+  if (t === 'int') return calcField('im', '한 번 달릴 거리 (m)', '예: 400', 'num') + calcField('ipace', '목표 페이스 (분:초/km)', '예: 4:00', 'time') + calcField('reps', '반복 횟수', '예: 8', 'num') + calcField('rest', '회복 시간 (초)', '예: 90', 'num');
+  if (t === 'stride') {
+    const w = calcVal('swant', 'pace');
+    return calcSeg('swant', w, [['pace', '페이스 구하기'], ['cad', '케이던스 구하기'], ['stride', '보폭 구하기']]) + (w !== 'pace' ? calcField('space', '페이스 (분:초/km)', '예: 5:00', 'time') : '') +
+      (w !== 'cad' ? calcField('cad', '케이던스 (걸음/분)', '예: 175', 'num') : '') + (w !== 'stride' ? calcField('cm', '보폭 (cm)', '예: 110', 'num') : '');
+  }
+  if (t === 'vdot') return calcDist(false) + calcField('rtime', '기록', '예: 50:00', 'time');
+  if (t === 'weight') return calcDist(false) + calcField('wtime', '현재 기록', '예: 50:00', 'time') + calcField('kg', '현재 체중 (kg)', '예: 65', 'num', st.M.P.weight);
+  const P = st.M.P;
+  return calcSeg('method', calcVal('method', P.method), [['hrr', '여유심박'], ['max', '최대심박'], ['lthr', '젖산역치']]) + calcField('max', '최대 심박 (bpm)', '예: 190', 'num', P.max) + calcField('hrest', '안정 심박 (bpm)', '예: 55', 'num', P.rest) + calcField('lthr', '젖산역치 심박 (bpm)', '예: 170', 'num', P.lthr);
+}
+
+function calcOut() {
+  const t = calcState().tool, M = st.M;
+  if (t === 'pace') {
+    const w = calcVal('want', 'pace'), r = solvePace(w, w === 'dist' ? null : calcDistM() / 1000, w === 'time' ? null : calcSec('time'), w === 'pace' ? null : calcPace('pace'));
+    if (!r) return calcNote('값을 넣으면 여기에 결과가 나와요. 페이스는 5:30처럼 넣어 주세요.');
+    return '<div class="grid2">' + calcBig('페이스', fmtPace(r.pace), '/km') + calcBig('시간', fmtDur(r.sec)) + calcBig('거리', calcKm(r.km), 'km') + calcBig('속도', r.kmh.toFixed(1), 'km/h') + '</div>';
+  }
+  if (t === 'tread') {
+    const w = calcVal('dir', 'kmh'), v = w === 'kmh' ? kmhToPace(calcNum('kmh')) : paceToKmh(calcPace('tpace'));
+    const res = v ? '<div class="grid2">' + (w === 'kmh' ? calcBig('페이스', fmtPace(v), '/km') : calcBig('트레드밀 속도', v.toFixed(1), 'km/h')) + '</div>' : calcNote('값을 넣으면 여기에 결과가 나와요.');
+    const rows = []; for (let k = 8; k <= 16; k++) rows.push('<tr><td>' + k + ' km/h</td><td>' + fmtPace(3600 / k) + '/km</td></tr>');
+    return res + '<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>속도</th><th>페이스</th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
+  }
+  if (t === 'int') {
+    const r = intervalCalc(calcNum('im'), calcPace('ipace'), calcNum('reps') || 1, calcNum('rest'));
+    const my = M.paces && M.paces.int ? '<p class="xs muted calc-hint">나의 인터벌 권장 페이스는 ' + esc(paceTxt(M.paces.int)) + '/km예요.</p>' : '';
+    if (!r) return calcNote('거리와 목표 페이스를 넣어 주세요.') + my;
+    return '<div class="grid2">' + calcBig('한 번 달리는 시간', fmtDur(r.rep)) + calcBig('400m 통과', fmtDur(r.lap400)) + calcBig('총 달리는 거리', calcKm(r.km), 'km') + calcBig('총 훈련 시간', fmtDur(r.total)) + '</div>' + my;
+  }
+  if (t === 'stride') {
+    const w = calcVal('swant', 'pace'), r = solveStride(w, w === 'pace' ? null : calcPace('space'), w === 'cad' ? null : calcNum('cad'), w === 'stride' ? null : calcNum('cm'));
+    if (!r) return calcNote('값을 넣으면 여기에 결과가 나와요.');
+    return '<div class="grid2">' + calcBig('페이스', fmtPace(r.pace), '/km') + calcBig('케이던스', Math.round(r.cad), '걸음/분') + calcBig('보폭', Math.round(r.cm), 'cm') + calcBig('속도', (3600 / r.pace).toFixed(1), 'km/h') + '</div>';
+  }
+  if (t === 'vdot') {
+    const r = vdotCalc(calcDistM(), calcSec('rtime'));
+    if (!r) return calcNote('기록을 넣어 주세요. 예를 들어 50:00이나 1:45:00처럼 넣으면 돼요.');
+    const my = isNum(M.level) ? M.level : null, gap = my === null ? null : r.vdot - my;
+    let h = '<div class="grid2">' + calcBig('이 기록의 VDOT', r.vdot.toFixed(1)) + calcBig('나의 VDOT', my === null ? '–' : my.toFixed(1)) + '</div>';
+    if (gap !== null) h += '<p class="small ink2 calc-hint">' + (Math.abs(gap) < 0.05 ? '나의 VDOT과 같은 수준의 기록이에요.' : '이 기록은 나의 VDOT보다 <b>' + Math.abs(gap).toFixed(1) + (gap > 0 ? ' 높아요' : ' 낮아요') + '</b>.') + '</p>';
+    const rowP = PACE_ZONES.map(([k, n]) => '<tr><td>' + n + '</td><td>' + esc(paceTxt(r.paces[k])) + '</td><td>' + (M.paces ? esc(paceTxt(M.paces[k])) : '–') + '</td></tr>').join('');
+    h += '<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>훈련 페이스</th><th>이 기록</th><th>나의 페이스</th></tr></thead><tbody>' + rowP + '</tbody></table></div>';
+    h += '<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>거리</th><th>예상 기록</th><th>페이스</th></tr></thead><tbody>' + r.races.map(x => '<tr><td>' + x.name + '</td><td>' + fmtDur(x.t) + '</td><td>' + fmtPace(x.pace) + '</td></tr>').join('') + '</tbody></table></div>';
+    return h;
+  }
+  if (t === 'weight') {
+    const rows = weightRows(calcDistM(), calcSec('wtime'), calcNum('kg', M.P.weight));
+    if (!rows) return calcNote('기록과 체중을 넣어 주세요.');
+    return '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>체중</th><th>예상 기록</th><th>페이스</th><th>차이</th></tr></thead><tbody>' +
+      rows.map(r => '<tr' + (r.d ? '' : ' class="calc-now"') + '><td>' + calcKm(r.kg) + 'kg</td><td>' + fmtDur(r.t) + '</td><td>' + fmtPace(r.pace) + '</td><td>' + (r.d ? (r.diff < 0 ? '−' : '+') + fmtDur(Math.abs(r.diff)) : '현재') + '</td></tr>').join('') +
+      '</tbody></table></div><p class="xs muted calc-hint">체력이 그대로라고 가정한 단순 추정이에요. 실제 기록은 근력, 훈련, 건강 상태에 따라 달라지니 참고로만 봐 주세요.</p>';
+  }
+  const P = M.P, method = calcVal('method', P.method), max = calcNum('max', P.max), z = calcZones(method, calcNum('hrest', P.rest), max, calcNum('lthr', P.lthr));
+  if (!z) return calcNote('심박 값을 확인해 주세요.');
+  const mine = zoneRanges(P.zones, P.max), calc = zoneRanges(z, max), txt = (r, i) => (i === 0 ? r[1] + ' 이하' : i === 4 ? r[0] + ' 이상' : r[0] + '–' + r[1]);
+  return '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>구간</th><th>계산</th><th>나의 구간</th></tr></thead><tbody>' + calc.map((r, i) => '<tr><td>Z' + (i + 1) + '</td><td>' + txt(r, i) + '</td><td>' + txt(mine[i], i) + '</td></tr>').join('') +
+    '</tbody></table></div><p class="xs muted calc-hint">나의 구간은 실력 탭과 같은 값이에요(' + esc(methodName(P.method)) + ' 기준 · 최대 ' + P.max + ' · 안정 ' + P.rest + ' · 젖산역치 ' + P.lthr + ' bpm).</p>';
+}
+
+function vCalc() {
+  const c = calcState(), t = c.tool;
+  return '<div><button class="back" data-act="back">' + IC.back + '뒤로</button></div><div class="page-head"><div><h1>러닝 계산기</h1></div></div>' +
+    '<div class="calc-tools" role="group" aria-label="계산기 종류">' + CALC_TOOLS.map(([k, n]) => '<button type="button" data-act="calc" data-k="tool" data-v="' + k + '" aria-pressed="' + (k === t) + '">' + n + '</button>').join('') + '</div>' +
+    '<section class="card"><p class="small ink2" style="margin-bottom:10px">' + esc(CALC_INTRO[t]) + '</p>' + calcForm(t) + '</section>' +
+    '<section class="card"><div class="card-head"><h2>결과</h2></div><div id="calc-out">' + calcOut() + '</div></section>';
+}
+function calcSet(k, v) {
+  const c = calcState();
+  if (k === 'tool') c.tool = v; else c.v[k] = v;
+  LS.set('calc', c); render(k !== 'tool');
+}
+function calcInput(el) {
+  const c = calcState(); c.v[el.dataset.calc] = el.value; LS.set('calc', c);
+  if (el.dataset.calc === 'km') document.querySelectorAll('.calc-dist button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === el.value));
+  const o = $('#calc-out'); if (o) o.innerHTML = calcOut();
+}
+
 // ===== ui_views.js — the five tabs, run detail, settings, data import, guide =====
 
 const st = { data: null, settings: {}, M: null, view: 'today', back: [], runFilter: 'all', runLimit: 60, runChart: 'pace', mounts: [], scroll: {}, saved: false, dl: null, importing: null, confirmDelete: false, growthRange: 180, runsTab: 'list', cmp: { on: false, ids: [], from: null }, crsChart: 'pace', cmpChart: 'pace',
@@ -6262,6 +6450,7 @@ function vTraining() {
   h += '<section class="card"><div class="card-head"><h2>훈련 상태 ' + infoBtn('status') + '</h2>' + pill(s.name, s.tone) + '</div><p class="small ink2">' + esc(s.desc) + '</p><div class="divider"></div><div class="grid3">' +
     stat('7일 부하', Math.round(M.load7), '', 'load') + stat('부하 비율', M.acwr !== null ? M.acwr.toFixed(2) : '–', '', 'acwr') + stat('체력 4주 변화', isNum(s.vo2Delta) ? signed(s.vo2Delta, 1) : '–', '', 'vo2') + '</div></section>';
   if (!M.asOf) h += weekStrip() + tplanCard();
+  h += '<section class="card"><div class="card-head" style="margin:0"><h2>러닝 계산기</h2><button class="btn small secondary" data-act="go" data-v="calc">열기</button></div><p class="xs muted" style="margin-top:6px">페이스, 트레드밀, 인터벌, 케이던스·보폭, VDOT, 체중별 기록, 심박 구간</p></section>';
   // load chart
   h += '<section class="card"><div class="card-head"><h2>훈련 부하 추이 ' + infoBtn('fitness') + '</h2><span class="xs muted">최근 12주</span></div><div class="chart" id="c-load"></div>' +
     '<div class="divider"></div><div class="grid3">' + stat('기초 체력', Math.round(M.ctl), '') + stat('단기 피로', Math.round(M.atl), '') + stat('폼', isNum(M.form) ? signed(M.form, 0) : '–', '') + '</div>' +
@@ -6675,7 +6864,7 @@ function planDaySheet(i) {
 
 // ===== ui_app.js — navigation, events, import / backup flows, boot =====
 const TAB_VIEWS = ['today', 'runs', 'training', 'growth', 'recovery', 'shoes'];
-function tabOf(v) { if (TAB_VIEWS.includes(v)) return v; if (v.startsWith('course:') || v.startsWith('cmp:')) return 'runs'; if (v.startsWith('run:')) return st.back.includes('runs') ? 'runs' : st.back[st.back.length - 1] || 'runs'; return null; }
+function tabOf(v) { if (TAB_VIEWS.includes(v)) return v; if (v === 'calc') return 'training'; if (v.startsWith('course:') || v.startsWith('cmp:')) return 'runs'; if (v.startsWith('run:')) return st.back.includes('runs') ? 'runs' : st.back[st.back.length - 1] || 'runs'; return null; }
 
 function render(keepScroll) {
   const v = st.view;
@@ -6696,6 +6885,7 @@ function render(keepScroll) {
     else if (v === 'settings') html = vSettings();
     else if (v === 'import') html = vImport();
     else if (v === 'guide') html = vGuide();
+    else if (v === 'calc') html = vCalc();
     else if (v.startsWith('run:')) html = vRun(v.slice(4));
     else if (v.startsWith('course:')) html = vCourse(v.slice(7));
     else if (v.startsWith('cmp:')) html = vCompare(v.slice(4).split(','));
@@ -6757,6 +6947,7 @@ document.addEventListener('click', e => {
     case 'cmp-go': { const ids = st.cmp.ids.slice(); if (ids.length < 2) break; st.cmp = { on: false, ids: [], from: null }; go('cmp:' + ids.join(',')); break; }
     case 'cmp-open': go('cmp:' + v); break;
     case 'share': openShare(v); break;
+    case 'calc': calcSet(a.dataset.k, v); break;
     case 'tp-month': tpMonthMove(+v); break;
     case 'tp-day': openSheet(tpDaySheet(+v)); break;
     case 'tp-day-del': tpDelDay(+v); break;
@@ -6891,6 +7082,7 @@ document.addEventListener('change', e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.dataset && e.target.dataset.calc) calcInput(e.target);
   if (e.target.closest && e.target.closest('#settings-form') && /^(maxHR|restHR|lthr)$/.test(e.target.id)) zonePreview();
   if (e.target.id === 'run-memo') { clearTimeout(st.memoT); const el = e.target; st.memoT = setTimeout(() => saveNote(el.dataset.run, el.value), 800); } // keep typing safe even if the app is closed
 });
@@ -6995,7 +7187,7 @@ async function shareApp() {
   try { await navigator.clipboard.writeText(url); toast('주소를 복사했어요: ' + url); } catch (e) { toast('SOOM 주소: ' + url); }
 }
 async function doDelete() {
-  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('tplan'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('tplan'); LS.del('wxfc'); LS.del('wxkerr'); st.newIds = []; st.gear = { shoes: [], pick: {} }; st.tplan = { goals: {}, days: {} };
+  await DB.del('data'); await DB.del('settings'); await DB.del('gear'); await DB.del('tplan'); await DB.del('wx'); LS.del('settings'); LS.del('newIds'); LS.del('gear'); LS.del('tplan'); LS.del('calc'); LS.del('wxfc'); LS.del('wxkerr'); st.newIds = []; st.gear = { shoes: [], pick: {} }; st.tplan = { goals: {}, days: {} };
   st.wx.runs = {}; st.wx.fc = null; st.wx.err = null; st.wx.place = null; LS.del('wxplace'); LS.del('places');
   st.notes = {}; LS.del('notes'); await DB.del('notes');
   st.settings = {}; st.saved = false; st.confirmDelete = false;
