@@ -4167,7 +4167,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "2a6e7bbfad"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "9dc0ff6bc3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5824,7 +5824,7 @@ function tplanCard() {
     }
     h += '</div>';
   });
-  h += '<button class="btn secondary block" style="margin-top:12px" data-act="tp-ics">휴대폰 캘린더로 보내기</button><p class="xs muted" style="margin-top:6px">날짜를 누르면 훈련을 넣고, 주 줄을 누르면 그 주 거리를 고쳐요. 초록 숫자는 실제로 달린 거리예요. 계획을 바꾼 뒤 다시 보내면 캘린더에 겹쳐 보일 수 있어요.</p></section>';
+  h += '<button class="btn secondary block" style="margin-top:12px" data-act="tp-ics">캘린더에 추가</button><p class="xs muted" style="margin-top:6px">날짜를 누르면 훈련을 넣고, 주 줄을 누르면 그 주 거리를 고쳐요. 초록 숫자는 실제로 달린 거리예요. 계획을 바꾼 뒤 다시 추가하면 캘린더에 겹쳐 보일 수 있어요.</p></section>';
   return h;
 }
 
@@ -5875,11 +5875,24 @@ function tpSaveWeek() {
 }
 function tpAutoWeek(mon) { delete tpGoal().wk[mon]; saveTplan(); closeSheet(); render(true); }
 
+// iPhones offer 'add to calendar' only for a calendar file opened like a web page, so the service worker serves it from the phone's own cache
+async function tpOpenIcs(text) {
+  if (TARGET !== 'web' || !('caches' in window)) return false;
+  try {
+    const c = await caches.open('run-files');
+    await c.put(new URL('plan.ics', location.href), new Response(text, { headers: { 'Content-Type': 'text/calendar; charset=utf-8' } }));
+    const r = await fetch('plan.ics', { cache: 'no-store' }); // an older service worker or none: use the file instead
+    if (!r.ok || !/calendar/.test(r.headers.get('Content-Type') || '')) return false;
+    location.href = 'plan.ics?t=' + Date.now();
+    return true;
+  } catch (e) { return false; }
+}
 async function tpExport() {
   if (!st.dl) { toast('이 화면에서는 파일 저장을 지원하지 않아요'); return; }
   const [y, m] = tpYM(), w = monthWeeks(y, m), last = w[w.length - 1].days.slice(-1)[0];
   const ics = buildIcs(tplanOf(), Math.max(w[0].days[0], st.M.today), last, Math.round(nowUtc()));
   if (!ics.n) { toast('보낼 훈련이 없어요. 오늘 이후 날짜에 훈련을 넣어 주세요'); return; }
+  if (await tpOpenIcs(ics.text)) return;
   try {
     await st.dl.save({ filename: 'soom-plan-' + monthKey(y, m) + '.ics', data: new Blob([ics.text], { type: 'text/calendar' }) });
     toast('훈련 ' + ics.n + '개를 캘린더 파일로 만들었어요');
