@@ -3553,7 +3553,8 @@ function racePlan(D, target) {
 }
 
 // '3:59:00' or '50:00' (also with dots), or digits alone: '50' = 50 min, '5000' = 50:00, '35900' = 3:59:00
-function parseGoalTime(s) {
+function parseGoalTime(s) { const t = parseClock(s); return t && t >= 600 && t <= 8 * 3600 ? t : null; }
+function parseClock(s) {
   if (!s) return null;
   let str = String(s).trim().replace(/[.,\s]+/g, ':').replace(/^:+|:+$/g, '');
   if (/^\d+$/.test(str)) {
@@ -3567,7 +3568,7 @@ function parseGoalTime(s) {
   let t = null;
   if (p.length === 3 && p[1] < 60 && p[2] < 60) t = p[0] * 3600 + p[1] * 60 + p[2];
   else if (p.length === 2 && p[1] < 60) t = p[0] * 60 + p[1];
-  return t && t >= 600 && t <= 8 * 3600 ? t : null;
+  return t;
 }
 
 function buildInsights(M) {
@@ -4248,7 +4249,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "248be8b5ac"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "6db65df23e"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -6016,7 +6017,7 @@ const CALC_INTRO = { pace: '거리·시간·페이스 중 두 가지를 넣으�
 function calcState() { return st.calc || (st.calc = Object.assign({ tool: 'pace', v: {} }, LS.get('calc') || {})); }
 function calcVal(k, def) { const v = calcState().v[k]; return v === undefined ? (def === undefined || def === null ? '' : String(def)) : v; }
 const calcNum = (k, def) => { const x = parseFloat(calcVal(k, def)); return isNum(x) ? x : null; };
-const calcSec = k => parseGoalTime(calcVal(k));
+const calcSec = k => parseClock(calcVal(k)) || null;
 const calcPace = k => parsePace(calcVal(k)) || null;
 const calcKm = n => String(Math.round(n * 100) / 100);
 
