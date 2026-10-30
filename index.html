@@ -2928,7 +2928,9 @@ function analyze(data, settings, opt) {
   let asOf = null;
   if (range.to < today) { asOf = range.to; today = asOf; now = (asOf + 1) * 86400 - off - 1; }
   const runs = data.runs.filter(r => r.day >= fromDay && r.day <= today).sort((a, b) => a.start - b.start);
-  const others = (data.others || []).filter(o => o.day >= fromDay && o.day <= today).sort((a, b) => a.start - b.start);
+  // a workout that overlaps a run is that run saved a second time (for example an older import under another type): it counts once
+  const isRunCopy = o => data.runs.some(r => Math.min(r.end, o.end) - Math.max(r.start, o.start) > 0.5 * Math.min(r.end - r.start, o.end - o.start));
+  const others = (data.others || []).filter(o => o.day >= fromDay && o.day <= today && !isRunCopy(o)).sort((a, b) => a.start - b.start);
   const full = data; // the whole history: heart-rate settings are estimated from everything known up to each day
   if (fromDay > -Infinity || asOf !== null) data = Object.assign({}, data, { runs, others, days: asOf !== null ? cutDays(data.days, asOf) : data.days });
   const P = buildProfile(full, S, today);
@@ -4251,7 +4253,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "be0ac3da31"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "0558e79029"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
