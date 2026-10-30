@@ -594,6 +594,8 @@ details.more[open] summary::after { content: "접기"; }
 .tp-day .d { font-family: var(--font-num); font-size: 12px; }
 .tp-day .r { position: absolute; top: 4px; right: 4px; font-family: var(--font-num); font-size: 11px; color: var(--good); }
 .tp-day i { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 999px; }
+.of-head { display: flex; align-items: center; gap: 6px; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; margin-bottom: 10px; }
+.of-head svg { width: 18px; height: 18px; flex: none; }
 </style>
 <div id="app">
   <header class="top">
@@ -3683,13 +3685,13 @@ function feelsKo(tC, rh, ws) {
   if (tC >= 25) return Math.max(tC, feelsLike(tC, rh, ws));
   return tC;
 }
-// Bands by 체감온도, from the user's own experience (8°: thin brushed long sleeve + shorts, 13°+: short sleeve + shorts, ≤5°: gloves)
+// Bands by 체감온도, from the user's own experience (8°: long sleeve + shorts, 13°+: short sleeve + shorts, ≤5°: gloves)
 // and five running YouTubers' advice (docs/clothing_refs.md). lo = lowest feel temperature the band covers.
 const OUTFIT = [
   { lo: 25, top: '민소매 또는 얇은 반팔(통풍 잘 되는 것)', bottom: '반바지', acc: ['모자', '선크림'], note: '땀이 많이 나요. 물을 챙기고 그늘진 길을 고르세요.' },
   { lo: 13, top: '반팔', bottom: '반바지', acc: [] },
   { lo: 10, top: '반팔 또는 얇은 긴팔', bottom: '반바지', acc: [], alt: '쌀쌀함을 많이 타면 하프집업' },
-  { lo: 7, top: '얇은 기모 긴팔', bottom: '반바지', acc: [], alt: '반팔 + 바람막이(몸이 데워지면 벗기)' },
+  { lo: 7, top: '긴팔', bottom: '반바지', acc: [], alt: '반팔 + 바람막이(몸이 데워지면 벗기)' },
   { lo: 4, top: '긴팔 + 바람막이', bottom: '반바지 또는 긴바지', acc: [], alt: '베이스레이어 + 하프집업' },
   { lo: 1, top: '베이스레이어 + 하프집업 + 바람막이', bottom: '긴바지', acc: ['장갑'] },
   { lo: -2, top: '베이스레이어 + 하프집업 + 패딩조끼', bottom: '긴바지', acc: ['장갑', '귀마개'], alt: '긴팔 + 바람막이 + 조끼' },
@@ -4167,7 +4169,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "5bc6fc73c3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f712b9db1a"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5103,7 +5105,7 @@ function wxAgo(fc) { const m = Math.round((nowUtc() - fc.at) / 60); return m < 2
 function wxNowCard() {
   if (!wxOn() || isDemo() && !st.wx.fc || st.M.asOf) return '';
   const M = st.M, fc = fcUsable(st.wx.fc, M.now);
-  const head = '<div class="card-head"><h2>러닝 날씨 ' + infoBtn('bestTime') + '</h2>' + (fcUsable(st.wx.fc, M.now) ? '<button class="link" data-act="outfit-open">' + IC.shirt + '복장 추천</button>' : '');
+  const head = '<div class="card-head"><h2>러닝 날씨 ' + infoBtn('bestTime') + '</h2>';
   if (!fc) {
     if (st.wx.busy) return '<section class="card wx-card">' + head + '</div><p class="small muted">날씨를 불러오는 중이에요…</p></section>';
     if (st.wx.err) return '<section class="card wx-card">' + head + '<button class="link" data-act="wx-refresh">다시 시도</button></div><p class="small muted">' + esc(st.wx.err) + '</p></section>';
@@ -5131,6 +5133,7 @@ function wxNowCard() {
   const sn = days[0].sun || (fc.loc ? Object.assign({ off: M.off }, sunTimes(fc.loc.lat, fc.loc.lon, M.today)) : null);
   h += sunLine(sn);
   if (dw && dw.advice && dw.advice.length) h += (di === 0 ? '' : '<div class="eyebrow" style="margin-top:10px">' + esc(dLbl) + ' 달리기 조언</div>') + '<div style="margin-top:6px">' + dw.advice.slice(0, 3).map(a => insRow({ tone: a.tone, text: a.text })).join('') + '</div>';
+  h += outfitBox();
   const an = fc.airNow;
   const src = (fc.kma ? '날씨 기상청 ' + (fc.kmaObs ? '실황·' : '') + '단기예보 · <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>' : '날씨 <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>') +
     (an ? ' · 미세먼지 에어코리아(' + esc(an.station ? an.station + ' 측정소' : '시·도 평균') + ', 실시간 자료라 바뀔 수 있어요)' : fc.air ? ' · 미세먼지 에어코리아 예보' : ' · 미세먼지 CAMS(참고용)');
@@ -5203,20 +5206,24 @@ function wxStatusHTML() {
 }
 
 // ---------- 러닝 복장: pick a day and an hour → 체감온도 and what to wear ----------
-function outfitOpen() {
-  const fc = fcUsable(st.wx.fc, st.M.now); if (!fc) { toast('날씨 예보를 먼저 불러와 주세요'); return; }
+function outfitInit(fc) {
   const now = st.M.now, nx = Math.ceil(now / 3600) * 3600;
   const days = st.M.plan && st.M.plan.days || [], b = days.map(d => d.wx && d.wx.best).find(x => x && x.s >= now - 1800);
   const t0 = b ? b.s : nx;
   st.outfit = { d: dayOfUtc(t0, fc.off), h: localHourOf(t0, fc.off), hard: false };
-  openSheet(outfitSheet());
+}
+function outfitBox() {
+  const fc = fcUsable(st.wx.fc, st.M.now); if (!fc) return '';
+  if (!st.outfit) outfitInit(fc);
+  const body = outfitBody(); if (!body) return '';
+  return '<div class="divider"></div><h2 class="of-head">' + IC.shirt + '복장 추천</h2><div id="of-box">' + body + '</div>';
 }
 function outfitSet(k, v) {
   const o = st.outfit || (st.outfit = { d: st.M.today, h: 7, hard: false });
   if (k === 'hard') o.hard = !o.hard; else o[k] = +v;
-  const s = $('#sheet-root .sheet'); if (s) s.innerHTML = outfitSheet();
+  const s = $('#of-box'); if (s) s.innerHTML = outfitBody();
 }
-function outfitSheet() {
+function outfitBody() {
   const fc = fcUsable(st.wx.fc, st.M.now); if (!fc) return '';
   const H = fc.H, o = st.outfit, now = st.M.now, off = fc.off;
   // hours we have a forecast for, grouped by local day (only from the current hour on)
@@ -5228,17 +5235,16 @@ function outfitSheet() {
   const t = H.t[k], w = { t: H.temp[k], rh: H.rh[k], ws: H.ws[k], pp: H.pp[k], pr: H.pr[k], wc: H.wc[k], dark: isDarkAt(fc, t + 1800) };
   const r = outfitFor(w, o.hard);
   const dayBtns = dlist.map(d => '<button type="button" data-act="outfit" data-k="d" data-v="' + d + '" aria-pressed="' + (d === o.d) + '">' + esc(dayName(d).replace(/\(.*\)/, '')) + '</button>').join('');
-  const hourOpts = ks.map(j => { const lh = localHourOf(H.t[j], off); return '<option value="' + lh + '"' + (lh === o.h ? ' selected' : '') + '>' + (lh < 12 ? '오전 ' : '오후 ') + (lh % 12) + '시</option>'; }).join('');
+  const hourOpts = ks.map(j => { const lh = localHourOf(H.t[j], off); return '<option value="' + lh + '"' + (lh === o.h ? ' selected' : '') + '>' + (lh < 12 ? '오전 ' : '오후 ') + (lh % 12 || 12) + '시</option>'; }).join('');
   const row = (k2, v) => '<div class="of-row"><span class="xs muted">' + k2 + '</span><b>' + esc(v) + '</b></div>';
-  let h = '<h2 style="margin-bottom:4px">러닝 복장</h2><p class="small ink2">달릴 날짜와 시각을 고르면 그때 예보로 체감온도와 알맞은 옷차림을 알려 드려요.</p>';
-  h += '<div class="segctl of-days" role="group" aria-label="날짜">' + dayBtns + '</div>';
+  let h = '<div class="segctl of-days" role="group" aria-label="날짜">' + dayBtns + '</div>';
   h += '<div class="row" style="gap:10px;margin:10px 0 4px;align-items:center"><label for="of-h" class="small">출발 시각</label><select id="of-h">' + hourOpts + '</select>' +
     '<button type="button" class="chip" data-act="outfit" data-k="hard" aria-pressed="' + o.hard + '">강도 높은 훈련</button></div>';
   h += '<div class="of-wx">' + wxIcon(w.wc, w.dark, 'wx-big') + '<div><span class="eyebrow">체감온도</span><span class="num of-feel">' + deg(r.feel) + '</span></div><div class="wx-desc"><span>기온 ' + deg(w.t) + ' · 습도 ' + (isNum(w.rh) ? Math.round(w.rh) + '%' : '–') + '</span><span>바람 ' + (isNum(w.ws) ? '초속 ' + Math.round(w.ws) + 'm' : '–') + (isNum(w.pp) ? ' · 비 ' + Math.round(w.pp) + '%' : '') + '</span><span>' + esc(wxName(w.wc)) + '</span></div></div>';
   h += '<div class="of-list">' + row('상의', r.top) + row('하의', r.bottom) + (r.acc.length ? row('챙길 것', r.acc.join(', ')) : '') + (r.alt ? row('다른 선택', r.alt) : '') + '</div>';
   if (r.notes.length) h += '<div style="margin-top:8px">' + r.notes.map(n => insRow({ tone: 'info', text: n })).join('') + '</div>';
   h += '<p class="xs muted" style="margin-top:10px">' + (o.hard ? '강도 높은 훈련은 몸이 더 빨리 데워져서 한 단계 가볍게 추천해요. ' : '') + '체감온도는 기상청 방식(추울 땐 바람, 더울 땐 습도 반영). 옷차림은 직접 입어 본 경험과 러닝 유튜버 5명의 의견을 종합했어요. 날씨 ' + (fc.kma ? '기상청 단기예보·' : '') + 'Open-Meteo.</p>';
-  return h + '<button class="btn" data-act="close" style="width:100%;margin-top:6px">닫기</button>';
+  return h;
 }
 
 // ===== ui_shoes.js — the 러닝화 tab: each shoe's distance toward its replacement point =====
@@ -6058,7 +6064,7 @@ function weekStrip() {
     return '<button class="day' + (i === 0 ? ' today' : '') + '" data-act="planday" data-v="' + i + '"><span class="dw">' + (i === 0 ? '오늘' : WD[weekday(d.d)] + '요일') + ' · ' + fmtDayShort(d.d) + '</span><span class="dn">' + esc(w.name) + '</span><span class="dk">' + (w.kind === 'rest' ? '–' : (w.estDist / 1000).toFixed(1) + '<small class="xs muted"> km</small>') + '</span>' + wxDayMini(d) + '<span class="bar" style="background:' + z + '"></span></button>';
   }).join('');
   const goal = plan.raceDay ? ' · ' + esc(plan.raceName) + ' D-' + (plan.raceDay - st.M.today) : '';
-  return '<section><div class="card-head" style="margin:0 2px 8px"><h2>이번 주 계획</h2><span class="xs muted">목표 ' + plan.weekKm + 'km' + goal + '</span></div><div class="strip">' + cells + '</div></section>';
+  return '<section><div class="card-head" style="margin:0 2px 8px"><h2>이번 주 추천 훈련 계획</h2><span class="xs muted">목표 ' + plan.weekKm + 'km' + goal + '</span></div><div class="strip">' + cells + '</div></section>';
 }
 function keyTiles() {
   const M = st.M, s = M.status;
@@ -6725,7 +6731,6 @@ document.addEventListener('click', e => {
     case 'tp-week': openSheet(tpWeekSheet(+v)); break;
     case 'tp-week-auto': tpAutoWeek(+v); break;
     case 'tp-ics': tpExport(); break;
-    case 'outfit-open': outfitOpen(); break;
     case 'outfit': outfitSet(a.dataset.k, v); break;
     case 'share-opt': shareOpt(a.dataset.k, v); break;
     case 'share-go': case 'share-save': shareGo(v); break;
