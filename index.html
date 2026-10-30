@@ -4178,7 +4178,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "640a3ef6d9"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "baf0f6a3e3"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -5218,15 +5218,14 @@ function wxStatusHTML() {
 }
 
 // little clothes drawn beside each answer, in the order the answer names them
-const OF_FACE = '<circle cx="21" cy="22" r="1.3" fill="currentColor" stroke="none"/><circle cx="27" cy="22" r="1.3" fill="currentColor" stroke="none"/><path d="M22 26q2 2 4 0" fill="none"/>';
 const OF_LONG = 'M17 8 9 13 5 38l6 1 5-17v18h16V22l5 17 6-1-4-25-8-5q-7 5-14 0Z';
 const OF_SHAPES = {
-  sleeveless: ['--good-soft', '<path d="M18 7q1 9-4 13v20h20V20q-5-4-4-13h-4q-2 5-4 0Z"/>' + OF_FACE],
-  tee: ['--accent-soft', '<path d="M17 8 8 14l3 8 5-2v20h16V20l5 2 3-8-9-6q-7 5-14 0Z"/>' + OF_FACE],
-  long: ['--good-soft', '<path d="' + OF_LONG + '"/>' + OF_FACE],
-  base: ['--surface-2', '<path d="' + OF_LONG + '"/><path d="M19 8v-3h10v3" fill="none"/>' + OF_FACE],
-  halfzip: ['--warn-soft', '<path d="' + OF_LONG + '"/><path d="M19 9q5 3 10 0M24 11v6" fill="none"/>' + OF_FACE],
-  jacket: ['--bad-soft', '<path d="' + OF_LONG + '"/><path d="M24 11v29" fill="none"/><path d="M18 8q1-5 6-5t6 5" fill="none"/><circle cx="19" cy="25" r="1.2" fill="currentColor" stroke="none"/><circle cx="29" cy="25" r="1.2" fill="currentColor" stroke="none"/>'],
+  sleeveless: ['--good-soft', '<path d="M18 7q1 9-4 13v20h20V20q-5-4-4-13h-4q-2 5-4 0Z"/>'],
+  tee: ['--accent-soft', '<path d="M17 8 8 14l3 8 5-2v20h16V20l5 2 3-8-9-6q-7 5-14 0Z"/>'],
+  long: ['--good-soft', '<path d="' + OF_LONG + '"/>'],
+  base: ['--surface-2', '<path d="' + OF_LONG + '"/><path d="M19 8v-3h10v3" fill="none"/>'],
+  halfzip: ['--warn-soft', '<path d="' + OF_LONG + '"/><path d="M19 9q5 3 10 0M24 11v6" fill="none"/>'],
+  jacket: ['--bad-soft', '<path d="' + OF_LONG + '"/><path d="M24 11v29" fill="none"/><path d="M18 8q1-5 6-5t6 5" fill="none"/>'],
   padding: ['--warn-soft', '<path d="' + OF_LONG + '"/><path d="M16 21h16M16 28h16M16 35h16M24 11v29" fill="none"/>'],
   vest: ['--accent-soft', '<path d="M17 7q1 9-4 13v20h22V20q-5-4-4-13h-4q-3 5-6 0Z"/><path d="M13 27h22M13 34h22M24 12v28" fill="none"/>'],
   shorts: ['--accent-soft', '<path d="M12 12h24l4 22H27l-3-11-3 11H8Z"/><path d="M12 17h24" fill="none"/>'],
