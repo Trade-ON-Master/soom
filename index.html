@@ -701,6 +701,8 @@ function parseISODate(s) {
 }
 function localOffsetSec() { return -new Date().getTimezoneOffset() * 60; }
 function nowUtc() { return Date.now() / 1000; }
+// average pace as the Fitness app shows it: workout time over distance. Moving time is a per-second estimate (it misses pauses in Health Auto Export files), so it stays for the analysis only
+function runPace(r) { return (r.dur || r.moving) / Math.max(1, r.dist) * 1000; }
 function dayOfUtc(utc, off) { return Math.floor((utc + off) / 86400); }
 function todayDay() { return dayOfUtc(nowUtc(), localOffsetSec()); }
 
@@ -3633,7 +3635,7 @@ function runInsights(r, M) {
   const sim = M.runs.filter(x => x.id !== r.id && x.start < r.start && x.day >= r.day - 90 && x.label === r.label && x.dist > r.dist * 0.7 && x.dist < r.dist * 1.3 && x.hrAvg && x.ef).slice(-6);
   if (sim.length >= 3 && r.ef && r.hrAvg) {
     const efw = x => x.efW || x.ef, wxDiff = sim.some(x => Math.abs(wxFactor(x) - wxFactor(r)) >= 0.01);
-    const pace = r.moving / r.dist * 1000, p0 = median(sim.map(x => x.moving / x.dist * 1000)), h0 = median(sim.map(x => x.hrAvg)), e0 = median(sim.map(efw));
+    const pace = runPace(r), p0 = median(sim.map(runPace)), h0 = median(sim.map(x => x.hrAvg)), e0 = median(sim.map(efw));
     const dp = pace - p0, dh = r.hrAvg - h0, gain = (efw(r) / e0 - 1) * 100;
     const pT = Math.abs(dp) < 2 ? '페이스는 비슷하고' : '페이스는 km당 ' + Math.round(Math.abs(dp)) + '초 ' + (dp < 0 ? '빠르고' : '느리고');
     const hT = Math.abs(dh) < 1 ? '평균 심박도 비슷해요' : '평균 심박은 ' + Math.round(Math.abs(dh)) + 'bpm ' + (dh < 0 ? '낮아요' : '높아요');
@@ -3674,7 +3676,7 @@ function runInsights(r, M) {
 // what the weather did to this run, in plain words
 function wxInsights(r) {
   const W = r.wx, out = []; if (!W) return out;
-  const pace = r.moving / Math.max(1, r.dist) * 1000, adj = pace / wxFactor(r);
+  const pace = runPace(r), adj = pace / wxFactor(r);
   const T = v => Math.round(v) + '°C';
   if (W.heat >= 1) out.push({ tone: W.heat >= 3 ? 'warn' : 'info', text: '기온 ' + T(W.t) + (isNum(W.dp) ? ' · 이슬점 ' + T(W.dp) : '') + ' — 더위 때문에 같은 노력에서 약 ' + W.heat.toFixed(1) + '% 느려지는 날씨였어요.' + (W.tot >= 1 && pace - adj >= 2 ? ' 날씨 영향을 빼면 평균 페이스 ' + fmtPace(adj) + '/km 수준이에요.' : '') });
   if (W.om && isNum(W.ws)) {
@@ -3934,7 +3936,7 @@ function sameCourse(a, b) {
   return pathShare(a, b) >= CRS.share && pathShare(b, a) >= CRS.share;
 }
 // pace with the heat/wind effect taken out (s/km): a slower run on a hot or windy day counts as faster than it looked
-function adjPace(r) { const p = r.moving / Math.max(1, r.dist) * 1000; return p / wxFactor(r); }
+function adjPace(r) { const p = runPace(r); return p / wxFactor(r); }
 
 // group runs into courses (2 runs or more), most used first
 function findCourses(runs) {
@@ -3956,7 +3958,7 @@ function findCourses(runs) {
 }
 function courseOf(g) {
   const runs = g.runs.slice().sort((a, b) => a.start - b.start);
-  const rows = runs.map(r => ({ id: r.id, day: r.day, start: r.start, dist: r.dist, moving: r.moving, pace: r.moving / Math.max(1, r.dist) * 1000, adj: adjPace(r), wxPct: r.wx ? r.wx.tot : 0,
+  const rows = runs.map(r => ({ id: r.id, day: r.day, start: r.start, dist: r.dist, moving: r.moving, pace: runPace(r), adj: adjPace(r), wxPct: r.wx ? r.wx.tot : 0,
     hr: r.hrAvg ? Math.round(r.hrAvg) : null, ef: r.efW || r.ef || null, label: r.label, t: r.wx ? r.wx.t : null }));
   const byAdj = rows.slice().sort((a, b) => a.adj - b.adj); byAdj.forEach((x, i) => { x.rank = i + 1; });
   const best = byAdj[0], bestRaw = rows.reduce((b, x) => !b || x.pace < b.pace ? x : b, null);
@@ -4017,9 +4019,9 @@ function cmpRows(runs) {
   return [
     { k: 'dist', name: '거리', vals: v(r => r.dist), better: null },
     { k: 'moving', name: '운동 시간', vals: v(r => r.moving), better: null },
-    { k: 'pace', name: '평균 페이스', vals: v(r => r.moving / Math.max(1, r.dist) * 1000), better: 'low' },
+    { k: 'pace', name: '평균 페이스', vals: v(r => runPace(r)), better: 'low' },
     { k: 'adj', name: '날씨 보정', vals: v(r => adjPace(r)), better: 'low', info: 'wx' },
-    { k: 'gap', name: '경사 보정', vals: v(r => { const s = r.ser; let g = 0, w = 0; for (let i = 0; i < s.t.length; i++) { g += s.gv[i]; w += s.v[i]; } return g > 0 && r.gps ? r.moving / Math.max(1, r.dist) * 1000 * w / g : null; }), better: 'low', info: 'gap' },
+    { k: 'gap', name: '경사 보정', vals: v(r => { const s = r.ser; let g = 0, w = 0; for (let i = 0; i < s.t.length; i++) { g += s.gv[i]; w += s.v[i]; } return g > 0 && r.gps ? runPace(r) * w / g : null; }), better: 'low', info: 'gap' },
     { k: 'hr', name: '평균 심박', vals: v(r => r.hrAvg ? Math.round(r.hrAvg) : null), better: null },
     { k: 'hrPace', name: '같은 심박 페이스', vals: null, better: 'low', info: 'efficiency' },
     { k: 'cad', name: '케이던스', vals: v(r => r.cad || null), better: null },
@@ -4041,7 +4043,7 @@ function cmpRows(runs) {
 function cmpInsights(runs) {
   const out = []; if (!runs || runs.length < 2) return out;
   const rs = runs.slice().sort((a, b) => a.start - b.start), A = rs[0], B = rs[rs.length - 1];
-  const day = r => fmtDayShort(r.day), pace = r => r.moving / Math.max(1, r.dist) * 1000;
+  const day = r => fmtDayShort(r.day), pace = r => runPace(r);
   const d = Math.round(pace(B) - pace(A)), da = Math.round(adjPace(B) - adjPace(A));
   const farDist = Math.abs(B.dist - A.dist) > 0.15 * Math.max(A.dist, B.dist);
   const word = (x, fast, slow) => Math.abs(x) < 2 ? '거의 같아요' : 'km당 ' + Math.abs(x) + '초 ' + (x < 0 ? fast : slow);
@@ -4249,7 +4251,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "6db65df23e"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "be0ac3da31"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -4805,7 +4807,7 @@ function drawKakaoMulti(el, rs, kakao) {
 function openMapFull(id) {
   const r = (st.M && st.M.runs.find(x => x.id === id)) || null; if (!r || !mapsOn()) return;
   closeMapFull();
-  const pace = r.moving / Math.max(1, r.dist) * 1000;
+  const pace = runPace(r);
   const w = document.createElement('div'); w.className = 'mapfull'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-modal', 'true'); w.setAttribute('aria-label', '러닝 경로 지도');
   w.innerHTML = '<div class="mapfull-map" id="map-full"></div>' +
     '<div class="mapfull-top"><div class="mapfull-t"><b>' + esc(fmtDay(r.day)) + ' ' + esc(timeKo(r.start, r.off)) + '</b><span>' + kmTxt(r.dist, 2) + 'km · ' + fmtPace(pace) + '/km · ' + fmtDur(r.dur) + '</span></div><button class="btn small" data-act="mapclose">닫기</button></div>' +
@@ -5257,7 +5259,7 @@ function wxPlanNote(day, full) {
 function wxRunCard(r) {
   const W = r.wx; if (!W) return '';
   const lh = localHourOf(r.start, r.off || 0), night = lh < 6 || lh >= 19;
-  const pace = r.moving / Math.max(1, r.dist) * 1000, adj = pace / wxFactor(r);
+  const pace = runPace(r), adj = pace / wxFactor(r);
   const eff = Math.abs(W.tot) >= 0.5 ? pill('날씨 영향 ' + (W.tot > 0 ? '+' : '−') + Math.abs(W.tot).toFixed(1) + '%', W.tot >= 3 ? 'warn' : 'ok') : pill('날씨 영향 거의 없음', 'good');
   let h = '<section class="card"><div class="card-head"><h2>날씨 ' + infoBtn('wx') + '</h2>' + eff + '</div>';
   h += '<div class="wx-now">' + wxIcon(W.om ? W.wc : null, night, 'wx-big') + '<span class="num wx-t">' + deg(W.t) + '</span><div class="wx-desc"><b>' + (W.om && isNum(W.wc) ? esc(wxName(W.wc)) : '기온') + '</b><span>' + [isNum(W.at) ? '체감 ' + deg(W.at) : '', isNum(W.rh) ? '습도 ' + W.rh + '%' : ''].filter(Boolean).join(' · ') + '</span>' + (W.om && isNum(W.ws) ? '<span>바람 ' + W.ws.toFixed(1) + 'm/s ' + windName(W.wd) + '</span>' : '') + '</div></div>';
@@ -5856,7 +5858,7 @@ function drawShareCard(cv, r, o, tiles) {
   const dTxt = kmTxt(r.dist, 2), dSz = sizeFor(dTxt, '600', 230, W - 2 * P - 150, SH_NUM);
   const dw = text(dTxt, P - 6, distY, '600 ' + dSz + 'px ' + SH_NUM, ink);
   text('km', P + dw + 10, distY, '600 ' + Math.round(dSz * 0.3) + 'px ' + SH_NUM, sub);
-  const pace = r.moving / Math.max(1, r.dist) * 1000, cols = [['시간', fmtDur(r.dur), ''], ['평균 페이스', fmtPace(pace), '/km']];
+  const pace = runPace(r), cols = [['시간', fmtDur(r.dur), ''], ['평균 페이스', fmtPace(pace), '/km']];
   if (o.hr && r.hrAvg) cols.push(['평균 심박', String(Math.round(r.hrAvg)), 'bpm']);
   const cw = (W - 2 * P) / cols.length;
   cols.forEach(([k, v, u], i) => {
@@ -5882,7 +5884,7 @@ async function shareGo(id) {
   catch (e) { if (!(e && e.code === 'declined')) toast('그림을 공유하지 못했어요'); }
 }
 function shareTextOf(r) {
-  const o = shareOpts(), pace = fmtPace(r.moving / Math.max(1, r.dist) * 1000), lines = [fmtDay(r.day) + ' ' + timeKo(r.start, r.off) + ' 러닝'];
+  const o = shareOpts(), pace = fmtPace(runPace(r)), lines = [fmtDay(r.day) + ' ' + timeKo(r.start, r.off) + ' 러닝'];
   lines.push(kmTxt(r.dist, 2) + 'km · ' + fmtDur(r.dur) + ' · ' + pace + '/km' + (o.hr && r.hrAvg ? ' · 평균 심박 ' + Math.round(r.hrAvg) : ''));
   if (o.wx && r.wx) lines.push('날씨 ' + Math.round(r.wx.t) + '°' + (isNum(r.wx.rh) ? ' · 습도 ' + r.wx.rh + '%' : ''));
   if (o.memo && noteFor(r)) lines.push('"' + noteFor(r) + '"');
@@ -6194,7 +6196,7 @@ function insRow(i) { return '<div class="ins"><span class="ic tone-' + (i.tone =
 function latestRunReport() {
   const M = st.M, runs = M.runs;
   if (!runs.length) return '<section class="card"><div class="empty">아직 러닝 기록이 없어요. 애플워치 운동 앱으로 달린 뒤 데이터를 가져오세요.</div></section>';
-  const r = runs[runs.length - 1], pace = r.moving / Math.max(1, r.dist) * 1000;
+  const r = runs[runs.length - 1], pace = runPace(r);
   const newIds = st.newIds || [];
   const isNew = newIds.includes(r.id), more = newIds.filter(id => id !== r.id).length;
   const ins = runInsights(r, M).slice(1, 4);
@@ -6303,7 +6305,7 @@ function runRow(r) {
   const [, , dd] = civilFromDays(r.day), pick = st.cmp.on && st.view === 'runs';
   return '<button class="run-row' + (pick ? ' pick' : '') + '" data-act="' + (pick ? 'cmp-pick' : 'run') + '" data-v="' + r.id + '"' + (pick ? ' aria-pressed="' + st.cmp.ids.includes(r.id) + '"' : '') + '>' + (pick ? '<span class="pick-dot" aria-hidden="true"></span>' : '') + '<div class="date"><b>' + dd + '</b><span>' + WD[weekday(r.day)] + '요일</span></div>' +
     '<div class="main"><div class="l1"><span class="num">' + kmTxt(r.dist, 2) + '<small class="xs muted"> km</small></span>' + labelChip(r.label) + (r.prs && r.prs.length ? '<span class="chip" style="background:var(--accent-soft);color:var(--accent)">기록 경신</span>' : '') + '</div>' +
-    '<div class="l2">' + fmtDur(r.dur) + ' · ' + fmtPace(r.moving / Math.max(1, r.dist) * 1000) + '/km' + (r.hrAvg ? ' · ' + Math.round(r.hrAvg) + ' bpm' : '') + (r.indoor ? ' · 실내' : wxRunTag(r)) + '</div>' + (noteFor(r) ? '<div class="l3">' + esc(noteFor(r)) + '</div>' : '') + '</div>' +
+    '<div class="l2">' + fmtDur(r.dur) + ' · ' + fmtPace(runPace(r)) + '/km' + (r.hrAvg ? ' · ' + Math.round(r.hrAvg) + ' bpm' : '') + (r.indoor ? ' · 실내' : wxRunTag(r)) + '</div>' + (noteFor(r) ? '<div class="l3">' + esc(noteFor(r)) + '</div>' : '') + '</div>' +
     '<div class="te"><b>' + r.teA.toFixed(1) + '</b>훈련 효과</div></button>';
 }
 function insightsCard() {
@@ -6350,7 +6352,7 @@ function vRuns() {
 function vRun(id) {
   const M = st.M, r = M.runs.find(x => x.id === id);
   if (!r) return '<button class="back" data-act="back">' + IC.back + '뒤로</button><div class="card"><div class="empty">기록을 찾을 수 없어요.</div></div>';
-  const s = r.ser, pace = r.moving / Math.max(1, r.dist) * 1000;
+  const s = r.ser, pace = runPace(r);
   let gsum = 0, vsum = 0; for (let i = 0; i < s.t.length; i++) { gsum += s.gv[i]; vsum += s.v[i]; }
   const gapPace = gsum > 0 && r.gps ? pace * vsum / gsum : null;
   let h = '<div class="row between"><button class="back" data-act="back">' + IC.back + '뒤로</button><button class="btn small ghost" data-act="share" data-v="' + r.id + '">' + IC.share + '공유</button></div>';
