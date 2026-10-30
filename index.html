@@ -564,6 +564,18 @@ details.more[open] summary::after { content: "접기"; }
 .share-btns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
 .share-btns .btn { padding: 11px 4px; font-size: 13.5px; gap: 5px; white-space: nowrap; }
 .share-btns .btn svg { width: 14px; height: 14px; }
+/* 러닝 복장 */
+.wx-card .card-head .link svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 3px; }
+.of-days { flex-wrap: wrap; }
+#of-h { font: inherit; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--accent, #4b49d8); color: #fff; }
+.chip[data-act] { border: 0; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+.of-wx { display: flex; align-items: center; gap: 14px; margin: 12px 0; padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.of-feel { display: block; font-size: 34px; font-weight: 700; line-height: 1.1; }
+.of-wx .wx-desc { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink2, inherit); margin-left: auto; text-align: right; }
+.of-list { display: grid; gap: 8px; }
+.of-row { display: grid; grid-template-columns: 84px 1fr; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.of-row b { font-weight: 650; }
 </style>
 <div id="app">
   <header class="top">
@@ -3643,6 +3655,51 @@ function wxInsights(r) {
   return out;
 }
 
+// ---------- running outfit ----------
+// 체감온도 as 기상청 shows it: wind chill when it's cool and windy (≤10°C, wind ≥ 4.8 km/h), the heat-humidity feel when it's hot (≥ 25°C),
+// otherwise the air temperature itself. ws in m/s.
+function feelsKo(tC, rh, ws) {
+  if (!isNum(tC)) return null;
+  const v = (isNum(ws) ? ws : 0) * 3.6;
+  if (tC <= 10 && v >= 4.8) { const p = Math.pow(v, 0.16); return 13.12 + 0.6215 * tC - 11.37 * p + 0.3965 * tC * p; }
+  if (tC >= 25) return Math.max(tC, feelsLike(tC, rh, ws));
+  return tC;
+}
+// Bands by 체감온도, from the user's own experience (8°: thin brushed long sleeve + shorts, 13°+: short sleeve + shorts, ≤5°: gloves)
+// and five running YouTubers' advice (docs/clothing_refs.md). lo = lowest feel temperature the band covers.
+const OUTFIT = [
+  { lo: 25, top: '민소매 또는 얇은 반팔(통풍 잘 되는 것)', bottom: '반바지', acc: ['모자', '선크림'], note: '땀이 많이 나요. 물을 챙기고 그늘진 길을 고르세요.' },
+  { lo: 13, top: '반팔', bottom: '반바지', acc: [] },
+  { lo: 10, top: '반팔 또는 얇은 긴팔', bottom: '반바지', acc: [], alt: '쌀쌀함을 많이 타면 하프집업' },
+  { lo: 7, top: '얇은 기모 긴팔', bottom: '반바지', acc: [], alt: '반팔 + 바람막이(몸이 데워지면 벗기)' },
+  { lo: 4, top: '긴팔 + 바람막이', bottom: '반바지 또는 긴바지', acc: [], alt: '베이스레이어 + 하프집업' },
+  { lo: 1, top: '베이스레이어 + 하프집업 + 바람막이', bottom: '긴바지', acc: ['장갑'] },
+  { lo: -2, top: '베이스레이어 + 하프집업 + 패딩조끼', bottom: '긴바지', acc: ['장갑', '귀마개'], alt: '긴팔 + 바람막이 + 조끼' },
+  { lo: -5, top: '긴팔 + 패딩조끼 + 바람막이', bottom: '기모바지', acc: ['장갑', '귀마개', '넥워머(버프)'] },
+  { lo: -10, top: '베이스레이어 + 기모 하프집업 + 패딩조끼 + 바람막이', bottom: '기모바지', acc: ['장갑', '귀마개', '넥워머(버프)'] },
+  { lo: -99, top: '긴팔 + 경량패딩 + 바람막이 + 조끼', bottom: '기모바지', acc: ['장갑', '바라클라바(얼굴 가리개)'], note: '아주 추워요. 짧게 달리고 미끄러운 길을 조심하세요.' },
+];
+// w: { t, rh, ws (m/s), pp (rain chance %), pr (mm/h), wc (weather code), dark } · hard: interval/tempo day (runs warmer → one band lighter)
+function outfitFor(w, hard) {
+  if (!w || !isNum(w.t)) return null;
+  const feel = feelsKo(w.t, w.rh, w.ws);
+  // light breeze is part of normal running weather (the user's and YouTubers' temperatures assume it): the band follows the air temperature
+  // unless the wind is real (≥ 3 m/s) or the heat feels hotter; the 체감온도 shown is always the 기상청-style one
+  const basis = (isNum(w.ws) && w.ws >= 3) || feel > w.t ? feel : w.t;
+  let i = OUTFIT.findIndex(b => basis >= b.lo);
+  if (hard && i > 1) i--; // a hard session warms you up: one band lighter (never lighter than 반팔+반바지 for cold)
+  const b = OUTFIT[i], acc = b.acc.slice(), notes = [];
+  if (basis <= 5 && !acc.includes('장갑')) acc.push('장갑');
+  const rain = (isNum(w.pr) && w.pr >= 0.5) || (isNum(w.pp) && w.pp >= 60) || [61, 63, 65, 80, 81, 82].includes(w.wc);
+  const snow = [71, 73, 75, 77, 85, 86].includes(w.wc);
+  if (rain || snow) { acc.push('챙 있는 모자'); notes.push((snow ? '눈' : '비') + ' 예보가 있어요. 방수 바람막이를 입고, 젖으면 체온이 빨리 떨어지니 한 단계 따뜻하게 입으세요.'); }
+  if (isNum(w.ws) && w.ws >= 5 && feel < 20 && !/바람막이/.test(b.top)) notes.push('바람이 강해요(초속 ' + Math.round(w.ws) + 'm). 얇은 바람막이를 더하세요.');
+  if (w.dark) notes.push('어두워요. 밝은 색이나 반사 소재 옷, 라이트를 챙기세요.');
+  if (basis < 13 && basis > -5) notes.push('출발할 때 살짝 춥다 싶게 입으면 10분쯤 뒤 딱 좋아요.');
+  if (b.note) notes.push(b.note);
+  return { feel: Math.round(feel * 10) / 10, t: w.t, top: b.top, bottom: b.bottom, acc, alt: b.alt || null, notes, band: i, hard: !!hard };
+}
+
 // ===== core_course.js — same courses: runs that follow the same path, compared with the weather taken out =====
 // Found from the route shape alone, on the device: the start and the finish within 250 m, the distance within 12 %, and at least
 // 85 % of each path within 60 m of the other's. Comparisons use the moving pace with the heat/wind effect (러닝 날씨 영향) taken out.
@@ -4003,7 +4060,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "473f8a9c47"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f070a574fe"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -4012,6 +4069,7 @@ const ZC = ['var(--z1)', 'var(--z2)', 'var(--z3)', 'var(--z4)', 'var(--z5)'];
 const TONE_COLOR = { good: 'var(--good)', ok: 'var(--accent)', warn: 'var(--warn)', bad: 'var(--bad)', muted: 'var(--muted)', info: 'var(--ink-2)' };
 const IC = {
   photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="9" cy="10" r="1.7"/><path d="m20.5 15.5-4.8-4.8L7 19.4"/></svg>',
+  shirt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 5.5 2.5 10l3 1.2V21h13v-9.8l3-1.2L20 5.5 16 3a4 4 0 0 1-8 0Z"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><path d="m7.8 7.6 4.2-4.1 4.2 4.1"/><path d="M8.5 11H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></svg>',
   good: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"/><path d="M12 16.5v.5"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
@@ -4938,7 +4996,7 @@ function wxAgo(fc) { const m = Math.round((nowUtc() - fc.at) / 60); return m < 2
 function wxNowCard() {
   if (!wxOn() || isDemo() && !st.wx.fc || st.M.asOf) return '';
   const M = st.M, fc = fcUsable(st.wx.fc, M.now);
-  const head = '<div class="card-head"><h2>러닝 날씨 ' + infoBtn('bestTime') + '</h2>';
+  const head = '<div class="card-head"><h2>러닝 날씨 ' + infoBtn('bestTime') + '</h2>' + (fcUsable(st.wx.fc, M.now) ? '<button class="link" data-act="outfit-open">' + IC.shirt + '복장 추천</button>' : '');
   if (!fc) {
     if (st.wx.busy) return '<section class="card wx-card">' + head + '</div><p class="small muted">날씨를 불러오는 중이에요…</p></section>';
     if (st.wx.err) return '<section class="card wx-card">' + head + '<button class="link" data-act="wx-refresh">다시 시도</button></div><p class="small muted">' + esc(st.wx.err) + '</p></section>';
@@ -5035,6 +5093,45 @@ function wxStatusHTML() {
   if (runs.length) { const nk = runs.filter(r => st.wx.runs[r.id] && /^kma/.test(st.wx.runs[r.id].src || '')).length; parts.push('지난 러닝 날씨 ' + have + '/' + runs.length + '회' + (nk ? '(기상청 관측 ' + nk + '회)' : '')); }
   if (KMA_RELAY && fc && fc.kma) parts.push('기상청 연결됨 (' + Number(fc.kma.base.slice(8, 10)) + '시 발표' + (fc.airNow ? ' · 에어코리아' : '') + ')');
   return '<div class="wx-status"><span class="xs muted">' + esc(parts.join(' · ')) + (st.wx.err ? '<br>' + esc(st.wx.err) : '') + (st.wx.kmaErr ? '<br>' + esc(st.wx.kmaErr) : st.wx.kerr && KMA_RELAY ? '<br>' + esc(kmaRunErrText(st.wx.kerr.k)) : '') + '</span><button type="button" class="link" data-act="wx-refresh">지금 새로 받기</button></div>';
+}
+
+// ---------- 러닝 복장: pick a day and an hour → 체감온도 and what to wear ----------
+function outfitOpen() {
+  const fc = fcUsable(st.wx.fc, st.M.now); if (!fc) { toast('날씨 예보를 먼저 불러와 주세요'); return; }
+  const now = st.M.now, nx = Math.ceil(now / 3600) * 3600;
+  const days = st.M.plan && st.M.plan.days || [], b = days.map(d => d.wx && d.wx.best).find(x => x && x.s >= now - 1800);
+  const t0 = b ? b.s : nx;
+  st.outfit = { d: dayOfUtc(t0, fc.off), h: localHourOf(t0, fc.off), hard: false };
+  openSheet(outfitSheet());
+}
+function outfitSet(k, v) {
+  const o = st.outfit || (st.outfit = { d: st.M.today, h: 7, hard: false });
+  if (k === 'hard') o.hard = !o.hard; else o[k] = +v;
+  const s = $('#sheet-root .sheet'); if (s) s.innerHTML = outfitSheet();
+}
+function outfitSheet() {
+  const fc = fcUsable(st.wx.fc, st.M.now); if (!fc) return '';
+  const H = fc.H, o = st.outfit, now = st.M.now, off = fc.off;
+  // hours we have a forecast for, grouped by local day (only from the current hour on)
+  const byDay = new Map();
+  H.t.forEach((t, k) => { if (t < now - 3600 || !isNum(H.temp[k])) return; const d = dayOfUtc(t, off); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(k); });
+  const dlist = [...byDay.keys()].slice(0, 7); if (!dlist.length) return '';
+  if (!byDay.has(o.d)) o.d = dlist[0];
+  const ks = byDay.get(o.d); let k = ks.find(j => localHourOf(H.t[j], off) === o.h); if (k === undefined) { k = ks[0]; o.h = localHourOf(H.t[k], off); }
+  const t = H.t[k], w = { t: H.temp[k], rh: H.rh[k], ws: H.ws[k], pp: H.pp[k], pr: H.pr[k], wc: H.wc[k], dark: isDarkAt(fc, t + 1800) };
+  const r = outfitFor(w, o.hard);
+  const dayBtns = dlist.map(d => '<button type="button" data-act="outfit" data-k="d" data-v="' + d + '" aria-pressed="' + (d === o.d) + '">' + esc(dayName(d).replace(/\(.*\)/, '')) + '</button>').join('');
+  const hourOpts = ks.map(j => { const lh = localHourOf(H.t[j], off); return '<option value="' + lh + '"' + (lh === o.h ? ' selected' : '') + '>' + (lh < 12 ? '오전 ' : '오후 ') + (lh % 12) + '시</option>'; }).join('');
+  const row = (k2, v) => '<div class="of-row"><span class="xs muted">' + k2 + '</span><b>' + esc(v) + '</b></div>';
+  let h = '<h2 style="margin-bottom:4px">러닝 복장</h2><p class="small ink2">달릴 날짜와 시각을 고르면 그때 예보로 체감온도와 알맞은 옷차림을 알려 드려요.</p>';
+  h += '<div class="segctl of-days" role="group" aria-label="날짜">' + dayBtns + '</div>';
+  h += '<div class="row" style="gap:10px;margin:10px 0 4px;align-items:center"><label for="of-h" class="small">출발 시각</label><select id="of-h">' + hourOpts + '</select>' +
+    '<button type="button" class="chip" data-act="outfit" data-k="hard" aria-pressed="' + o.hard + '">강도 높은 훈련</button></div>';
+  h += '<div class="of-wx">' + wxIcon(w.wc, w.dark, 'wx-big') + '<div><span class="eyebrow">체감온도</span><span class="num of-feel">' + deg(r.feel) + '</span></div><div class="wx-desc"><span>기온 ' + deg(w.t) + ' · 습도 ' + (isNum(w.rh) ? Math.round(w.rh) + '%' : '–') + '</span><span>바람 ' + (isNum(w.ws) ? '초속 ' + Math.round(w.ws) + 'm' : '–') + (isNum(w.pp) ? ' · 비 ' + Math.round(w.pp) + '%' : '') + '</span><span>' + esc(wxName(w.wc)) + '</span></div></div>';
+  h += '<div class="of-list">' + row('상의', r.top) + row('하의', r.bottom) + (r.acc.length ? row('챙길 것', r.acc.join(', ')) : '') + (r.alt ? row('다른 선택', r.alt) : '') + '</div>';
+  if (r.notes.length) h += '<div style="margin-top:8px">' + r.notes.map(n => insRow({ tone: 'info', text: n })).join('') + '</div>';
+  h += '<p class="xs muted" style="margin-top:10px">' + (o.hard ? '강도 높은 훈련은 몸이 더 빨리 데워져서 한 단계 가볍게 추천해요. ' : '') + '체감온도는 기상청 방식(추울 땐 바람, 더울 땐 습도 반영). 옷차림은 직접 입어 본 경험과 러닝 유튜버 5명의 의견을 종합했어요. 날씨 ' + (fc.kma ? '기상청 단기예보·' : '') + 'Open-Meteo.</p>';
+  return h + '<button class="btn" data-act="close" style="width:100%;margin-top:6px">닫기</button>';
 }
 
 // ===== ui_shoes.js — the 러닝화 tab: each shoe's distance toward its replacement point =====
@@ -6404,6 +6501,8 @@ document.addEventListener('click', e => {
     case 'cmp-go': { const ids = st.cmp.ids.slice(); if (ids.length < 2) break; st.cmp = { on: false, ids: [], from: null }; go('cmp:' + ids.join(',')); break; }
     case 'cmp-open': go('cmp:' + v); break;
     case 'share': openShare(v); break;
+    case 'outfit-open': outfitOpen(); break;
+    case 'outfit': outfitSet(a.dataset.k, v); break;
     case 'share-opt': shareOpt(a.dataset.k, v); break;
     case 'share-go': case 'share-save': shareGo(v); break;
     case 'share-text': shareText(v); break;
@@ -6518,6 +6617,7 @@ function wxUnswap(a) {
 document.addEventListener('change', e => {
   if (e.target.id === 'goalDist') { const f = $('#settings-form'); if (f) f.dataset.goal = +e.target.value > 0 ? 1 : 0; }
   if (e.target.id === 'goalDate') { const b = document.querySelector('[data-act="cleardate"]'); if (b) b.hidden = !e.target.value; }
+  if (e.target.id === 'of-h') outfitSet('h', e.target.value);
   if (e.target.id === 'run-shoe') setRunShoe(e.target.dataset.run, e.target.value);
   if (e.target.id === 'run-memo') { clearTimeout(st.memoT); saveNote(e.target.dataset.run, e.target.value); toast(e.target.value.trim() ? '메모를 저장했어요' : '메모를 지웠어요'); } // 'change' fires only when the text changed
   if (e.target.id === 'period') {
