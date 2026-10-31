@@ -1571,7 +1571,7 @@ function buildNights(raw) {
       const r = n[src] || (n[src] = { asleep: 0, deep: 0, rem: 0, core: 0, awake: 0, inbed: 0, first: Infinity, last: -Infinity, main: 0, off: c.off });
       r.asleep += c.asleep; r.deep += c.deep; r.rem += c.rem; r.core += c.core; r.awake += c.awake; r.inbed += c.inbed;
       r.first = Math.min(r.first, c.first);
-      if (c.asleep > r.main) { r.main = c.asleep; r.last = c.last; r.off = c.off; }
+      if (c.asleep > r.main) { r.main = c.asleep; r.mainStart = c.first; r.last = c.last; r.off = c.off; }
     }
   }
   const out = {};
@@ -1586,7 +1586,7 @@ function buildNights(raw) {
     if (!best) continue;
     const staged = best.deep + best.rem + best.core > 0;
     out[day] = { asleep: Math.round(best.asleep), deep: Math.round(best.deep), rem: Math.round(best.rem), core: Math.round(best.core),
-      awake: Math.round(best.awake), inbed: Math.round(best.inbed), start: Math.round(best.first), end: Math.round(best.last), off: best.off, staged };
+      awake: Math.round(best.awake), inbed: Math.round(best.inbed), start: Math.round(best.first), mainStart: Math.round(best.mainStart), end: Math.round(best.last), off: best.off, staged };
   }
   return out;
 }
@@ -4277,7 +4277,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "238537860c"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "58c49be9cc"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -6661,7 +6661,7 @@ function vRecovery() {
     const seg = L.staged ? [['깊은 수면', L.deep, 'var(--sleep-deep)'], ['코어', L.core, 'var(--sleep-core)'], ['렘', L.rem, 'var(--sleep-rem)'], ['깸', L.awake, 'var(--sleep-awake)']] : [['수면', L.asleep, 'var(--sleep-core)'], ['깸', L.awake, 'var(--sleep-awake)']];
     const tot = sum(seg.map(s => s[1]));
     h += '<section class="card"><div class="card-head"><h2>수면 ' + infoBtn('sleep') + '</h2><span class="xs muted">' + fmtDay(L.d) + '</span></div>' +
-      '<div class="row" style="gap:18px;flex-wrap:wrap;align-items:flex-end">' + stat('수면 점수', L.score, '점') + stat('잔 시간', fmtDurKo(L.asleep), '') + (L.start ? stat('취침 → 기상', fmtClock(L.start, L.off) + ' → ' + fmtClock(L.end, L.off), '') : '') + '</div>' +
+      '<div class="row" style="gap:18px;flex-wrap:wrap;align-items:flex-end">' + stat('수면 점수', L.score, '점') + stat('잔 시간', fmtDurKo(L.asleep), '') + (L.start ? stat('취침 → 기상', fmtClock(L.mainStart || L.start, L.off) + ' → ' + fmtClock(L.end, L.off), '') : '') + '</div>' +
       '<div class="stack" style="margin-top:12px;height:16px">' + seg.map(s => s[1] > 0 ? '<b style="width:' + (s[1] / tot * 100) + '%;background:' + s[2] + '"></b>' : '').join('') + '</div>' +
       '<div class="legend">' + seg.map(s => '<span><i style="background:' + s[2] + '"></i>' + s[0] + ' ' + fmtDurKo(s[1]) + (L.staged && s[0] !== '깸' ? ' (' + Math.round(s[1] / L.asleep * 100) + '%)' : '') + '</span>').join('') + '</div>' +
       '<div class="chart" id="c-sleep" style="margin-top:12px"></div></section>';
