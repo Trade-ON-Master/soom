@@ -1,5 +1,5 @@
 // Offline start for the home-screen app: keeps the app itself (not your records, not map pictures) in the phone's cache.
-const CACHE = 'run-app-0558e79029';
+const CACHE = 'run-app-f3d2ada343';
 const FILES = 'run-files'; // the calendar file the page just made, handed to the phone as if it came from a website (it never leaves the phone)
 const SHELL = ['./', './index.html', './manifest.webmanifest', './vendor/leaflet.js', './vendor/leaflet.css',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-32.png'];

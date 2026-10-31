@@ -4253,7 +4253,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "0558e79029"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f3d2ada343"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -7151,6 +7151,7 @@ $('#file-backup').addEventListener('change', async e => {
     if (obj.gear && Array.isArray(obj.gear.shoes)) { st.gear = Object.assign({ shoes: [], pick: {} }, obj.gear); saveGear(); }
     if (obj.tplan && obj.tplan.days && obj.tplan.goals) { st.tplan = obj.tplan; saveTplan(); }
     if (obj.notes && typeof obj.notes === 'object') { st.notes = Object.assign({}, obj.notes, st.notes); LS.set('notes', st.notes); DB.set('notes', st.notes); }
+    if (obj.courseNames && typeof obj.courseNames === 'object') LS.set('courseNames', Object.assign({}, obj.courseNames, crsNames()));
     if (obj.wx && typeof obj.wx === 'object') { st.wx.runs = Object.assign({}, obj.wx, st.wx.runs); DB.set('wx', { v: WX_V, runs: st.wx.runs, ktry: st.wx.ktry || {} }); }
     st.saved = await DB.set('data', cleanData(data));
     recompute(); st.importError = null; st.back = []; st.view = 'today'; render();
@@ -7175,7 +7176,7 @@ async function webSave({ filename, data }) {
 }
 async function doBackup() {
   if (!st.dl) { toast('이 화면에서는 파일 저장을 지원하지 않아요'); return; }
-  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), tplan: tplanOf(), notes: st.notes || {}, wx: st.wx.runs, data: cleanData(st.data) });
+  const payload = JSON.stringify({ app: 'running-lab', v: 1, savedAt: Math.round(nowUtc()), settings: st.settings, gear: gearOf(), tplan: tplanOf(), notes: st.notes || {}, courseNames: crsNames(), wx: st.wx.runs, data: cleanData(st.data) });
   try {
     await st.dl.save({ filename: 'soom-backup-' + dayISO(st.M.today) + '.json', data: new Blob([payload], { type: 'application/json' }) });
     LS.set('lastBackup', Math.round(nowUtc())); LS.del('backupSnooze');
