@@ -12,8 +12,13 @@ const ROUTES = {
   '/air-sido': '/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty', // 시도별 실시간 미세먼지
   '/air-fcst': '/B552584/ArpltnInforInqireSvc/getMinuDustFrcstDspth', // 미세먼지 예보
 };
-// 지난 날씨는 바뀌지 않아서 더 오래 보관해요(초 단위). 나머지는 10분.
-const KEEP = { '/asos': 3600 };
+// 자주 바뀌지 않는 자료는 1시간 보관해요(초 단위). 공공데이터 하루 한도를 아끼려는 것이고, 나머지는 10분.
+const KEEP = {
+  '/asos': 3600, '/vilage': 3600, '/air-sido': 3600, '/air-fcst': 3600,
+  '/svc/1360000/MidFcstInfoService/getMidTa': 3600,
+  '/svc/1360000/MidFcstInfoService/getMidLandFcst': 3600,
+  '/svc/1360000/LivingWthrIdxServiceV5/getUVIdxV5': 3600,
+};
 // 앞으로 SOOM이 기상청(1360000)·에어코리아(B552584)의 다른 서비스를 쓰게 되어도 이 코드를 다시 바꾸지 않아도 되도록:
 // /svc/1360000/서비스이름/기능이름 처럼 부르면 그 서비스로 전달해요. 다른 기관의 서비스는 전달하지 않아요.
 const SVC = /^\/svc(\/(?:1360000|B552584)\/[A-Za-z0-9_.]+\/[A-Za-z0-9_]+)$/;
@@ -24,7 +29,7 @@ export default {
     const cors = { 'Access-Control-Allow-Origin': allowed ? origin : ALLOWED[0], 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Max-Age': '86400', 'Vary': 'Origin' };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const url = new URL(request.url);
-    if (url.pathname === '/') return new Response('SOOM relay OK v2' + (env.KMA_KEY ? '' : ' (KMA_KEY 비밀값이 아직 없어요)'), { headers: { ...cors, 'Content-Type': 'text/plain; charset=utf-8' } });
+    if (url.pathname === '/') return new Response('SOOM relay OK v3' + (env.KMA_KEY ? '' : ' (KMA_KEY 비밀값이 아직 없어요)'), { headers: { ...cors, 'Content-Type': 'text/plain; charset=utf-8' } });
     const m = SVC.exec(url.pathname), path = ROUTES[url.pathname] || (m && m[1]);
     if (!path) return new Response('unknown', { status: 404, headers: cors });
     if (!allowed) return new Response('forbidden', { status: 403, headers: cors });
