@@ -1362,7 +1362,7 @@ function buildRun(w, hrPacked, stepIdx, distIdx, dynIdx, raw, route, coarse) {
   const appleDist = dStat && isNum(dStat.sum) ? toMeters(dStat.sum, dStat.unit || 'km') : w.legacyDist;
   if (isNum(appleDist) && appleDist > 0 && tot > 0) {
     const r = appleDist / tot;
-    if (r > 0.7 && r < 1.4) for (let s = 0; s < N; s++) inc[s] *= r;
+    if (r > 0.4 && r < 1.4) for (let s = 0; s < N; s++) inc[s] *= r;
   }
 
   // moving seconds
@@ -1547,15 +1547,32 @@ function buildOther(w, hrPacked) {
 }
 
 function buildNights(raw) {
+  // sleep that runs on (gaps up to an hour) is one stretch. A stretch whose middle falls after 6 pm belongs to the next day:
+  // it stays whole, and the days then line up with the scores in the Health app (compared on real nights).
+  // Bedtime is the first sleep of the day, wake time the end of its longest
+  const bySrc = new Map();
+  for (const x of raw.sleep) { const dur = x[1] - x[0]; if (dur <= 0 || dur > 16 * 3600) continue; if (!bySrc.has(x[3])) bySrc.set(x[3], []); bySrc.get(x[3]).push(x); }
   const nights = new Map();
-  for (const [s, e, st, src, off] of raw.sleep) {
-    const dur = e - s; if (dur <= 0 || dur > 16 * 3600) continue;
-    const day = Math.floor((s + off + 6 * 3600) / 86400);
-    let n = nights.get(day); if (!n) { n = {}; nights.set(day, n); }
-    let r = n[src]; if (!r) r = n[src] = { asleep: 0, deep: 0, rem: 0, core: 0, awake: 0, inbed: 0, first: Infinity, last: -Infinity, off };
-    if (st === 0) r.inbed += dur;
-    else if (st === 2) r.awake += dur;
-    else { r.asleep += dur; if (st === 3) r.core += dur; else if (st === 4) r.deep += dur; else if (st === 5) r.rem += dur; r.first = Math.min(r.first, s); r.last = Math.max(r.last, e); }
+  for (const [src, list] of bySrc) {
+    list.sort((a, b) => a[0] - b[0]);
+    const stretches = []; let cur = null;
+    for (const [s, e, st, , off] of list) {
+      if (!cur || s - cur.until > 3600) { cur = { asleep: 0, deep: 0, rem: 0, core: 0, awake: 0, inbed: 0, first: Infinity, last: -Infinity, until: e, off }; stretches.push(cur); }
+      cur.until = Math.max(cur.until, e);
+      const dur = e - s;
+      if (st === 0) cur.inbed += dur;
+      else if (st === 2) cur.awake += dur;
+      else { cur.asleep += dur; if (st === 3) cur.core += dur; else if (st === 4) cur.deep += dur; else if (st === 5) cur.rem += dur; cur.first = Math.min(cur.first, s); cur.last = Math.max(cur.last, e); }
+    }
+    for (const c of stretches) {
+      if (!(c.asleep > 0)) continue;
+      const day = Math.floor(((c.first + c.last) / 2 + c.off + 6 * 3600) / 86400);
+      let n = nights.get(day); if (!n) { n = {}; nights.set(day, n); }
+      const r = n[src] || (n[src] = { asleep: 0, deep: 0, rem: 0, core: 0, awake: 0, inbed: 0, first: Infinity, last: -Infinity, main: 0, off: c.off });
+      r.asleep += c.asleep; r.deep += c.deep; r.rem += c.rem; r.core += c.core; r.awake += c.awake; r.inbed += c.inbed;
+      r.first = Math.min(r.first, c.first);
+      if (c.asleep > r.main) { r.main = c.asleep; r.last = c.last; r.off = c.off; }
+    }
   }
   const out = {};
   for (const [day, n] of nights) {
@@ -1823,7 +1840,7 @@ function haeSleep(P, data) {
       const h = x => isNum(x) ? x * 3600 : 0;
       const deep = h(d.deep), rem = h(d.rem), core = h(d.core);
       const asleep = h(d.totalSleep) || (deep + rem + core + h(d.asleep));
-      const day = isNum(s) && d.sleepStart ? dayOfUtc(s + 6 * 3600, off) : isoToDay(String(d.date || '').slice(0, 10));
+      const day = isNum(e) && isNum(s) && d.sleepEnd ? dayOfUtc((s + e) / 2 + 6 * 3600, off) : isoToDay(String(d.date || '').slice(0, 10));
       if (!isNum(day)) continue;
       (P.sleepAgg || (P.sleepAgg = [])).push({ day, asleep, deep, rem, core, awake: h(d.awake), inbed: h(d.inBed), start: s, end: e, off, staged: deep + rem + core > 0 });
     }
@@ -2864,19 +2881,26 @@ function predictRaces(level, runs, today) {
 }
 
 // ---------- sleep, HRV, readiness ----------
-function sleepScore(n, needH) {
+// how close this bedtime is to the usual one of the nights before (points out of 30), or null with too few nights to tell
+function bedtimePts(n, prior) {
+  const angle = p => ((p.start + p.off) % 86400 + 86400) % 86400 / 86400 * 2 * Math.PI;
+  const known = (prior || []).filter(p => p && p.start);
+  if (!n.start || known.length < 3) return null;
+  const usual = Math.atan2(sum(known.map(p => Math.sin(angle(p)))), sum(known.map(p => Math.cos(angle(p)))));
+  let diff = Math.abs(angle(n) - usual) % (2 * Math.PI);
+  if (diff > Math.PI) diff = 2 * Math.PI - diff;
+  return 30 * clamp(1 - (diff / (2 * Math.PI) * 1440 - 60) / 420, 0, 1);
+}
+// the make-up Apple publishes for its sleep score (duration 50, bedtime over the last 13 nights 30, interruptions 20);
+// Apple does not publish the formula inside each part and the score itself cannot be read, so these curves are our own, fitted to real nights against the Health app's scores
+function sleepScore(n, needH, prior) {
   if (!n) return null;
   const h = n.asleep / 3600, need = needH || 8;
-  const dur = 40 * clamp((h - 3.5) / (need - 0.5 - 3.5), 0, 1) - (h > need + 2 ? 5 : 0);
-  const rest = 20 * clamp(1 - (n.awake / 60 - 10) / 50, 0, 1);
-  let score, parts;
-  if (n.staged) {
-    const deepP = n.deep / n.asleep * 100, remP = n.rem / n.asleep * 100;
-    const deep = 20 * Math.min(1, deepP / 13), rem = 20 * Math.min(1, remP / 20);
-    score = dur + deep + rem + rest; parts = { dur, deep, rem, rest, deepP, remP };
-  } else { score = dur * 1.75 + rest * 1.5; parts = { dur, rest }; }
-  score = Math.round(clamp(score, 0, 100));
-  return { score, parts, label: score >= 90 ? '최고' : score >= 80 ? '좋음' : score >= 60 ? '보통' : '부족' };
+  const dur = 50 * clamp((h - 2) / (need - 0.5 - 2), 0, 1);
+  const rest = 20 * clamp(1 - (n.awake / 60 - 10) / 110, 0, 1);
+  const bed = bedtimePts(n, prior);
+  const score = Math.round(clamp(bed === null ? (dur + rest) * 100 / 70 : dur + bed + rest, 0, 100));
+  return { score, parts: { dur, rest, bed }, label: score >= 96 ? '매우 높음' : score >= 81 ? '높음' : score >= 61 ? '보통' : score >= 41 ? '낮음' : '매우 낮음' };
 }
 function lerpPts(x, pts) { // piecewise-linear through [[x,y],...] (x ascending)
   if (x <= pts[0][0]) return pts[0][1];
@@ -3033,7 +3057,7 @@ function analyze(data, settings, opt) {
   const rhrBase = d => { const a = []; for (let k = d - 30; k < d; k++) if (isNum(D.rhr[k])) a.push(D.rhr[k]); return a.length >= 7 ? median(a) : NaN; };
   const tempDev = d => { if (!isNum(D.temp[d])) return NaN; const a = []; for (let k = d - 30; k < d; k++) if (isNum(D.temp[k])) a.push(D.temp[k]); return a.length >= 7 ? D.temp[d] - median(a) : NaN; };
   const respDev = d => { if (!isNum(D.resp[d])) return NaN; const a = []; for (let k = d - 30; k < d; k++) if (isNum(D.resp[k])) a.push(D.resp[k]); return a.length >= 7 ? D.resp[d] - median(a) : NaN; };
-  const sleepOf = d => { const n = D.sleep[d]; if (!n) return null; const sc = sleepScore(n, S.sleepNeed); return Object.assign({ d }, n, sc); };
+  const sleepOf = d => { const n = D.sleep[d]; if (!n) return null; const prior = []; for (let k = 1; k <= 13; k++) if (D.sleep[d - k]) prior.push(D.sleep[d - k]); const sc = sleepScore(n, S.sleepNeed, prior); return Object.assign({ d }, n, sc); };
 
   function readinessFor(d) {
     const f = {}; const w = {};
@@ -4253,7 +4277,7 @@ async function makeDemoData(nowS, off) {
   return data;
 }
 </script>
-<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "f3d2ada343"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
+<script>const TARGET = "web"; const APP_NAME = "SOOM"; const APP_VERSION = "238537860c"; let KAKAO_KEY = "030348e1d638b40621a9eea6fd105d63"; let KMA_RELAY = "https://soom-kma.tradeon-master.workers.dev";
 // ===== ui_base.js — helpers, local storage, charts, glossary =====
 'use strict';
 const $ = s => document.querySelector(s);
@@ -4573,8 +4597,9 @@ const INFO = {
   focus: { t: '부하 집중도 (4주)', b: '최근 4주 부하가 저강도 유산소, 고강도 유산소, 무산소 중 어디에 쏠렸는지 보여줘요. 고르게 채울수록 체력이 균형 있게 올라요. 점선 상자는 목표 범위예요.', how: '달리는 동안 심박이 젖산역치의 89% 미만이면 저강도, 그 이상이면 고강도 유산소, VO2max 속도보다 빠르면 무산소로 나눠 부하를 더해요. 목표: 저강도 45~70%, 고강도 20~45%, 무산소 3~12%.', ref: '가민 \'훈련 부하 집중도\'' },
   dist: { t: '강도 분포 (4주)', b: '달린 시간 중 각 심박 구간에 머문 비율이에요. 엘리트 선수들도 약 80%는 편하게(1~2구간), 20%만 힘들게 달려요.', how: '4주간 러닝의 심박 구간별 시간을 더해요.', ref: '코로스 \'4주 강도 분포\', 80/20 훈련법' },
   vo2: { t: '러닝 VO2max (VDOT)', b: '달리기 능력을 나타내는 지수예요. 높을수록 같은 속도를 더 편하게 달려요. 레이스 예측과 훈련 페이스가 모두 이 값에서 나와요.', how: '① 최근 8주 기록 중 가장 좋은 구간 기록(언덕 보정)을 잭 다니엘스 공식으로 환산하고, ② 꾸준히 달린 구간의 심박-속도 관계로 VO2max를 추정해 합쳐요. 최근에 최선을 다해 달린 적이 없으면 심박 추정 쪽으로 보정해요.', ref: '가민 \'VO2 Max\', 코로스 \'러닝 레벨\'' },
-  apple: { t: '애플 심폐 체력', b: '애플워치가 실외 걷기·달리기 중 측정한 VO2max예요. 걷기도 포함한 전반적인 심폐 체력에 가까워요.', how: '건강 앱의 \'심폐 체력(VO2 최대)\' 기록을 그대로 가져와요.', ref: '' },
-  fitAge: { t: '체력 나이', b: '내 VO2max가 몇 살의 평균과 같은지 보여줘요. 실제 나이보다 낮을수록 좋아요.', how: '애플 심폐 체력(없으면 러닝 VO2max)을 나이·성별 평균과 비교해요.', ref: '가민 \'피트니스 나이\'' },
+  effort: { t: '운동 강도', b: '이 운동이 얼마나 힘들었는지를 1~10점으로 나타낸 값이에요. 체력을 뜻하는 VO2max와는 다른 값이에요.', how: '건강 앱의 운동 강도 기록을 가져와요. 직접 남긴 값이 있으면 그 값을, 없으면 애플워치가 추정한 값을 보여 줘요.' },
+  apple: { t: '심폐 체력', b: '애플워치가 실외 걷기·달리기 중 측정한 VO2max예요. 걷기도 포함한 전반적인 심폐 체력에 가까워요.', how: '건강 앱의 \'심폐 체력(VO2 최대)\' 기록을 그대로 가져와요.', ref: '' },
+  fitAge: { t: '체력 나이', b: '내 VO2max가 몇 살의 평균과 같은지 보여줘요. 실제 나이보다 낮을수록 좋아요.', how: '심폐 체력(없으면 러닝 VO2max)을 나이·성별 평균과 비교해요.', ref: '가민 \'피트니스 나이\'' },
   preds: { t: '레이스 예측', b: '지금 체력으로 각 거리를 최선을 다해 달렸을 때 예상 기록이에요.', how: '러닝 VO2max로 다니엘스 공식의 예상 기록을 구한 뒤, 하프·풀은 최근 6주 주간 거리와 최장 거리가 부족한 만큼 느리게 보정해요. 실제 기록은 코스·날씨·컨디션에 따라 ±2~3% 달라질 수 있어요.', ref: '가민·코로스 \'레이스 예측\'' },
   paces: { t: '훈련 페이스', b: '목적에 맞는 훈련 속도예요. 이지런은 이지 페이스, 템포런은 역치 페이스처럼 맞춰 달리면 효과가 커져요.', how: '러닝 VO2max의 일정 비율(회복 55~60%, 이지 62~70%, 역치 87~89%, 인터벌 96~99%, 반복 104~108%)에 해당하는 속도예요. 마라톤 페이스는 풀코스 예측 기록 기준이에요.', ref: '잭 다니엘스 VDOT 훈련 페이스' },
   zones: { t: '심박 구간', b: '운동 강도를 5단계로 나눈 심박 범위예요. 1~2구간은 편한 유산소, 3구간은 템포, 4구간은 역치, 5구간은 최대 강도예요.', how: '설정에서 기준을 고를 수 있어요: 여유심박(기본) · 최대심박 · 젖산역치. 최대·안정·역치 심박은 기록에서 자동으로 찾고, 직접 입력할 수도 있어요. 구간은 기록이 쌓이면서 자동으로 바뀌고(안정 심박은 최근 30일, 최대 심박은 최근 1년, 젖산역치는 최근 6개월 기록), 지난 러닝은 그날까지의 기록으로 정한 그날의 구간으로 계산해요. 그래서 나중에 구간이 바뀌어도 지난 기록의 구간별 시간과 훈련 부하는 그대로예요. 설정에 숫자를 직접 넣으면 모든 기록에 그 값을 써요.', ref: '가민·코로스 심박 구간' },
@@ -4587,7 +4612,7 @@ const INFO = {
   cp: { t: '역치 파워 (CP)', b: '오래 유지할 수 있는 최대 러닝 파워예요. 파워는 언덕·바람에도 즉시 반응해서 일정한 노력을 유지하는 데 좋아요.', how: '최근 90일 최고 3분·12분 평균 파워로 임계 파워 모델을 계산해요.', ref: '스트라이드 \'Critical Power\'' },
   hrv: { t: 'HRV 상태', b: '심박변이도(HRV)는 자율신경의 회복 상태를 보여줘요. 평소 범위 안에 있으면 \'균형\', 크게 낮아지면 피로·스트레스·질병의 신호일 수 있어요.', how: '애플워치가 주로 수면 중 측정하는 HRV(SDNN)의 7일 평균을 지난 60일 기준 범위(초록 띠)와 비교해요. 하루 값보다 흐름이 중요해요.', ref: '가민 \'HRV 상태\'' },
   rhr: { t: '안정 심박', b: '쉬고 있을 때의 심박수예요. 체력이 좋아지면 서서히 낮아지고, 피로하거나 아플 때는 올라가요.', how: '애플워치가 기록한 하루 안정 심박을 30일 중앙값과 비교해요.', ref: '' },
-  sleep: { t: '수면 점수', b: '수면 시간과 질을 0~100점으로 보여줘요. 80점 이상이면 좋아요.', how: '수면 시간(40점), 깊은 수면 비율(20점, 13% 이상 만점), 렘 수면 비율(20점, 20% 이상 만점), 깨어 있던 시간(20점)으로 계산해요. 애플워치를 차고 자야 수면 단계가 기록돼요.', ref: '가민 \'수면 점수\'' },
+  sleep: { t: '수면 점수', b: '수면 시간과 규칙성, 잠이 끊긴 정도를 0~100점으로 보여줘요. 81점 이상이면 높음이에요.', how: '애플워치 수면 점수가 공개한 구성대로 수면 시간(50점), 잠든 시각의 규칙성(30점, 최근 13밤과 비교), 깨어 있던 시간(20점)으로 계산해요. 이어진 잠은 한 덩어리로 묶고, 잠의 가운데 시각이 오후 6시 뒤면 다음 날 수면으로 봐요. 애플은 세부 계산을 공개하지 않고 점수를 다른 앱에 주지 않아서, 건강 앱 점수와 똑같지는 않아요.', ref: null },
   temp: { t: '손목 체온 변화', b: '수면 중 손목 체온이 평소보다 얼마나 다른지예요. 0.5°C 이상 오르면 몸살·피로의 신호일 수 있어요.', how: '애플워치(시리즈 8 이후)의 수면 중 손목 체온을 30일 중앙값과 비교해요.', ref: '' },
   prs: { t: '개인 기록', b: '모든 러닝에서 찾은 거리별 가장 빠른 구간 기록이에요(레이스가 아니어도 포함돼요).', how: '각 러닝 안에서 해당 거리를 가장 빨리 달린 구간을 찾아요(멈춘 시간 제외). GPS 오차로 몇 초 차이가 날 수 있어요.', ref: '가민 \'개인 기록\'' },
   abilities: { t: '거리별 실력 균형', b: '짧은 거리부터 긴 거리까지 기록이 고르게 좋은지 보여줘요. 낮은 막대는 그 거리대가 상대적 약점이거나, 최근 그 거리를 힘껏 달린 적이 없다는 뜻이에요.', how: '최근 12주 거리대별 최고 기록을 VDOT으로 바꿔 현재 러닝 VO2max와 비교해요(100% = 같은 수준).', ref: '코로스 \'러닝 피트니스 분석\'' },
@@ -6545,14 +6570,14 @@ function vGrowth() {
   const lv = M.level;
   h += '<section class="card"><div class="card-head"><h2>러닝 VO2max ' + infoBtn('vo2') + '</h2><div class="seg" role="group" aria-label="기간">' + [[90, '3개월'], [180, '6개월'], [365, '1년']].map(([d, n]) => '<button data-act="grange" data-v="' + d + '" aria-pressed="' + (st.growthRange === d) + '">' + n + '</button>').join('') + '</div></div>' +
     '<div class="row" style="align-items:flex-end;gap:18px;flex-wrap:wrap"><div><div class="hero-v">' + (isNum(lv) ? lv.toFixed(1) : '–') + '</div><div class="xs muted">VDOT · ml/kg/분</div></div>' +
-    '<div class="row" style="gap:16px;flex-wrap:wrap">' + stat('애플 심폐 체력', M.appleVO2 ? M.appleVO2.toFixed(1) : '–', '', 'apple') + stat('체력 나이', M.fitAge ? M.fitAge : '–', M.fitAge ? '세' : '', 'fitAge') + '</div></div>' +
+    '<div class="row" style="gap:16px;flex-wrap:wrap">' + stat('심폐 체력', M.appleVO2 ? M.appleVO2.toFixed(1) : '–', '', 'apple') + stat('체력 나이', M.fitAge ? M.fitAge : '–', M.fitAge ? '세' : '', 'fitAge') + '</div></div>' +
     '<div class="chart" id="c-vo2" style="margin-top:10px"></div>' +
     (isNum(M.levelPerf) || isNum(M.levelHR) ? '<p class="xs muted" style="margin-top:6px">기록 기반 ' + (isNum(M.levelPerf) ? M.levelPerf.toFixed(1) : '–') + ' · 심박-속도 기반 ' + (isNum(M.levelHR) ? M.levelHR.toFixed(1) : '–') + (M.P.ageKnown ? ' · 나이 ' + M.P.age + '세' : '') + '</p>' : '') + '</section>';
   mount(() => {
     const n = st.growthRange, x = [], L = [], Hh = [], A = [];
     for (let d = M.today - n + 1; d <= M.today; d++) { x.push(d); const v = at(M.LT, d); L.push(isNum(v) ? v : null); const hv = atArr(M.LT.hr, M.LT.d0, d); Hh.push(isNum(hv) ? hv : null); A.push(isNum(st.data.days.vo2[d]) ? st.data.days.vo2[d] : null); }
     lineChart($('#c-vo2'), { x, xFmt: fmtDayShort, tipX: d => fmtDay(d), height: 180, label: 'VO2max 추이', yFmt: v => v.toFixed(0),
-      series: [{ name: '러닝 VO2max', y: L, color: 'var(--s1)', fmt: v => v.toFixed(1), endDot: true }, { name: '심박-속도 추정', y: Hh, color: 'var(--s2)', width: 1.5, fmt: v => v.toFixed(1) }, { name: '애플 심폐 체력', y: A, color: 'var(--s3)', dotsOnly: true, r: 3, fmt: v => v.toFixed(1) }], table: false });
+      series: [{ name: '러닝 VO2max', y: L, color: 'var(--s1)', fmt: v => v.toFixed(1), endDot: true }, { name: '심박-속도 추정', y: Hh, color: 'var(--s2)', width: 1.5, fmt: v => v.toFixed(1) }, { name: '심폐 체력', y: A, color: 'var(--s3)', dotsOnly: true, r: 3, fmt: v => v.toFixed(1) }], table: false });
   });
   if (M.preds) {
     const prev = isNum(at(M.LT, M.ref - 28)) ? predictRaces(at(M.LT, M.ref - 28), M.runs.filter(r => r.day <= M.ref - 28), M.ref - 28) : null;
